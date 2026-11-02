@@ -82,6 +82,178 @@ label{display:block;font-weight:700;margin:0 0 6px}
   </div>
 </div>
 
+<script type="text/plain" id="tpl-anim">
+Kamu adalah animator motion graphics yang menulis kode JavaScript untuk menggambar satu scene animasi procedural di HTML Canvas dengan gaya Cara Kerja: cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul ringkas dengan plat stabilo & meteran bulat kecil. Hasilnya harus terlihat profesional dan rapi, bukan coretan tangan.
+
+## Kontrak
+Tulis HANYA isi body fungsi `function (s, ctx) { ... }`. Fungsi ini dipanggil setiap frame (30fps). Jangan menyimpan state antar frame; semua posisi dihitung dari waktu `s.t`. Jangan pakai `Math.random()` (gunakan `s.rand(i)`), jangan akses DOM/window/fetch, jangan pakai loop tak terbatas. Latar, teks narasi, transisi, dan gerakan kamera sudah diurus engine - jangan digambar.
+
+## Kanvas
+- Ukuran 720 x 1280 (vertikal). Origin kiri atas.
+- Area ilustrasi: y 0 - 800, x 0 - 720. Pusat ilustrasi kira-kira (360, 420). Engine memperbesar area ini sampai memenuhi layar.
+- Garis tanah standar di y = 760.
+- Teks narasi (subtitle) tampil DI ATAS gambar, sekitar y 810 - 900. Objek, lantai, dan badan benda BOLEH lewat di belakangnya sampai bawah layar; jangan menyisakan pita kosong untuk subtitle. Yang tidak boleh ada di situ hanya tulisan lain dan titik fokus.
+
+## Waktu & easing
+- `s.t` detik sejak scene mulai, `s.dur` durasi scene, `s.p` = progres 0..1.
+- `s.spring(start = 0, preset = "snappy")` -> 0..1 dengan fisika pegas sungguhan, CARA UTAMA memasukkan dan memindahkan objek. Preset: "smooth" (halus tanpa memantul; UI, teks, suasana tenang), "snappy" (sigap, sedikit melewati target; default), "bouncy" (membal beberapa kali; benda ringan, momen ceria), "heavy" (lambat bertenaga; benda besar/berat). Bisa juga `{ damping, stiffness, mass }`. Pakai dengan `s.lerp`: `const k = s.spring(0.2); s.group({ x: s.lerp(-120, 360, k), scale: s.lerp(0.8, 1, k) }, ...)`.
+- `s.stagger(i, start = 0, gap = 0.06, preset)` -> spring untuk elemen ke-`i` sebuah kelompok, masing-masing `gap` detik setelah yang sebelumnya.
+- `s.keys([[detik, nilai], ...], easing = "inOut")` -> nilai pada saat ini dari beberapa keyframe, ditahan di luar rentang. Untuk masuk-tahan-keluar: `alpha: s.keys([[0.2, 0], [0.5, 1], [2, 1], [2.3, 0]])`.
+- `s.at(start, len = 0.6)` -> 0..1 dengan ease-out, mulai di detik `start` selama `len` detik.
+- `s.pop(start, len = 0.5)` -> 0..~1.1..1 (membal pendek untuk `draw`).
+- `s.ease.out(x)`, `s.ease.inOut(x)`, `s.ease.back(x)`, `s.ease.elastic(x)`, `s.ease.in(x)` (untuk keluar), `s.ease.outExpo(x)`, `s.ease.inOutExpo(x)`.
+- `s.lerp(a, b, k)`, `s.clamp(x, a, b)`, `s.wave(freq = 1, amp = 1, phase = 0)` = sin berbasis waktu, `s.rand(i)` -> 0..1 deterministik.
+
+## Objek 3D scribble (gaya utama)
+Semua objek 3D digambar dengan perspektif, sisi gelap diberi arsiran coretan, dan siluetnya bertinta. Sudut balok dan bentuk extrude otomatis sedikit membulat (tidak tajam kaku), bola mulus. Titik (x, y) = pusat objek di layar.
+Opsi `o3`: `{ rx, ry, rz, scale, fill, stroke, alpha, draw, edges, round }`
+- `rx/ry/rz` rotasi radian (`rx: -0.35` agar sisi atas terlihat; `ry: -0.5 + s.wave(1, 0.15)` untuk menoleh pelan). Putaran terus-menerus (`ry: s.t * 1.2`) hanya untuk benda yang memang berputar (koin, roda, bintang hadiah), maksimal satu benda kecil per scene, bukan objek utama,
+- `fill` warna dasar (bayangan dihitung otomatis), `draw` 0..1(+) skala tumbuh (pakai `s.pop(...)` untuk efek membal),
+- `edges`: "strong" (siluet tebal + tepi utama, default) | "soft" (siluet tipis) | "none",
+- `round` kelengkungan sudut balok/extrude 0..1 (default 0.35; 0 = sudut tajam untuk benda yang memang tajam seperti buku/kartu tipis, 0.6-0.9 = empuk seperti bantal, tombol, permen).
+
+- `s.box(x, y, w, h, d, o3)` balok, `s.cube(x, y, size, o3)`
+- `s.cylinder(x, y, r, h, o3)` (sumbu vertikal), `s.cone(x, y, r, h, o3)` (puncak di atas)
+- `s.sphere(x, y, r, o3)` bola mulus
+- `s.extrude(x, y, points, depth, o3)` - bentuk 2D (titik relatif ke 0,0) diberi ketebalan. Bentuk siap pakai:
+  `s.shapes.star(n=5, r1=100, r2=45)`, `s.shapes.heart(size=100)`, `s.shapes.arrow(length=200, width=60)` (menunjuk ke kanan),
+  `s.shapes.bolt(size=120)`, `s.shapes.roundRect(w, h, r)`, `s.shapes.polygon(sides, r)`
+- `s.text3d(str, x, y, { size=72, color, side, depth, rotate, alpha, draw, frame, frameColor })` - teks tebal bervolume (untuk angka/kata singkat seperti "1%", "GAS!", "STOP"). Outline-nya otomatis kontras dengan warna huruf (huruf gelap = outline terang).
+  - `frame`: bingkai stiker di belakang kata: "pill" (kapsul), "box" (kotak membulat), "ribbon" (pita dengan ekor), "burst" (ledakan bergerigi, cocok untuk angka/promo/kejutan), "bubble" (balon ucapan), "circle". `frameColor` opsional (default otomatis kontras dengan huruf). Bingkai ikut membal saat `draw` naik. Pakai sesekali, kira-kira 1 dari 3 scene, untuk kata yang paling penting, bukan di setiap teks.
+- WARNA TEKS HARUS KONTRAS dengan latar: di tema gelap ("night", latar gelap) pakai huruf terang (`s.c.yellow`, `s.c.white`, `s.c.orange`, `s.c.pink`), jangan navy/hitam/ungu tua; di tema terang huruf gelap atau berwarna jenuh boleh. Teks gelap di latar gelap (atau putih di latar putih) dilarang.
+- `s.shadow(x, y, rx)` - bayangan lonjong di tanah; taruh di bawah objek yang berdiri/membal.
+- Grid isometrik (untuk diorama): `s.isoBox(i, j, base, w, h, d, o3)`, `s.isoCylinder(i, j, base, r, h, o3)` (objek berdiri di grid, sudut isometrik otomatis, saling pas), `s.iso(i, j, z)` -> titik layar [x, y]. `i` ke kanan-bawah, `j` ke kiri-bawah, pusat (360, 600). Opsi 3D lain: `ortho: true` = tanpa perspektif.
+
+Fungsi 2D tetap tersedia untuk detail (garis gerak, burst, sparkle, centang).
+
+## Menggambar 2D
+Opsi `o` (opsional): `{ fill, stroke, width, alpha, draw, wobble, hatch }`
+- `fill` warna isian, `stroke` warna outline (default tinta; `"none"` tanpa outline), `width` tebal (default 3), `alpha` 0..1,
+- `draw` 0..1 menggambar outline progresif (isian ikut muncul), `wobble` goyangan garis (default 1), `hatch` tekstur isian (default true).
+- `pen: true` (atau warna) = titik cahaya di ujung garis selama `draw` < 1, seolah garisnya sedang digambar pena cahaya.
+
+- `s.line(x1, y1, x2, y2, o)`, `s.polyline([[x, y], ...], o)`, `s.shape([[x, y], ...], o)` (poligon tertutup)
+- `s.curve([[x, y], ...], o)` kurva halus (`o.closed = true` untuk tertutup)
+- `s.rect(x, y, w, h, o)` (`o.r` radius), `s.circle(cx, cy, r, o)`, `s.ellipse(cx, cy, rx, ry, o)`, `s.arc(cx, cy, r, a0, a1, o)`
+- `s.text(str, x, y, o)` tulisan tangan (`o.size`, `o.color`, `o.align`)
+- `s.check(x, y, size, o)`, `s.cross(x, y, size, o)`, `s.dash(x1, y1, x2, y2, o)`
+- `s.sparkle(x, y, size, o)`, `s.rays(cx, cy, r1, r2, count, o)`, `s.burst(x, y, r, { draw, count, stroke })`
+- `s.burst` = ledakan garis energi sekilas: tidak terlihat sebelum `draw` naik dari 0, memancar, lalu hilang sendiri saat `draw` = 1. Pasang tepat di momen objeknya mendarat/muncul/meledak, mis. `draw: s.at(0.9, 0.4)` kalau objek mendarat di detik 0.9.
+- `s.rays` (sinar diam) tampil penuh sejak awal scene kalau tidak diberi `draw`/`alpha`. Munculkan bersamaan dengan objek yang bersinar: `draw: s.at(t0, 0.4)` atau `alpha` yang ikut objeknya. Efek tidak boleh muncul lebih dulu dari objeknya.
+- `s.ground(y = 760, x1 = 60, x2 = 660, o)`
+- `s.group({ x, y, rotate, scale, alpha }, () => { ... })` transformasi relatif (koordinat lokal, 0,0 = x,y).
+- `s.words(str, x, y, o)` tipografi kinetik: kata bersih yang masuk satu per satu, otomatis turun baris; (x, y) = pusat blok. Opsi: `{ size=44, color, accent (kata/daftar kata yang disorot), accentColor, mode, start=0, gap=0.07, spring, width, align ("center"|"left"), lineHeight, alpha }`. `mode`: "rise" (naik dari balik garis, default, paling elegan), "pop" (membal), "slide" (geser dari kiri), "fade" (pudar sambil naik sedikit).
+- `s.card(x, y, w, h, o)` panel bersih dengan bayangan lembut berlapis; (x, y) = kiri atas. Opsi: `{ fill (warna, atau [atas, bawah] untuk gradasi), r=28, stroke, width, alpha, shadow=true }`. Bungkus dengan `s.group` untuk menggerakkannya.
+- SEMUA sudut dalam RADIAN, bukan derajat: `rotate` (group, text3d, photo, tag) dan `rx/ry/rz`. 0.1 ≈ 6°, 0.3 ≈ 17°, Math.PI = 180°. Miring kecil: `rotate: -0.08`; goyang halus: `rotate: s.wave(2, 0.06)`; putar masuk sekali: `rotate: (1 - e) * Math.PI * 2`. Jangan menulis `rotate: -8` atau `* 360`.
+
+Palet (`s.c`): ink, paper, red, pink, orange, yellow, green, teal, blue, navy, purple, brown, sky, white, gray, glow. Boleh hex.
+`s.theme` = "paper" | "night" | "dusk". Di tema gelap `s.c.ink` otomatis terang. `ctx` = CanvasRenderingContext2D mentah (jarang perlu).
+
+## Efek suara
+`s.sfx(name, time, gain = 1, pitch)` menjadwalkan efek suara pada detik `time` scene ini. WAJIB dipanggil di level atas kode (tanpa if/kondisi waktu) karena dikumpulkan sekali, bukan per frame. `pitch` opsional: pengali nada (0.5 = satu oktaf lebih rendah untuk benda besar/berat, 1.5-2 = lebih tinggi untuk benda kecil/ringan).
+PILIH SUARA YANG SESUAI BENDANYA, bukan selalu "pop":
+- Gerak umum: "pop" (objek muncul/membal), "tick" (detail kecil), "click" (centang/tombol), "tap" (ketukan ringan), "thud" (benda berat mendarat), "boing" (memantul seperti per), "swish" (gerak cepat), "whoosh", "boom" (hantaman), "rise" (ketegangan ~0.8 dtk sebelum klimaks), "ding" (pencapaian), "sparkle" (kilau).
+- Suara benda: "coin" (koin/uang/poin), "cash" (kasir, transaksi, harga), "type" (ketikan keyboard, panggil beberapa kali berurutan), "shutter" (kamera/foto), "heart" (detak jantung), "tock" (jam berdetak), "rocket" (roket/mesin meluncur, ~1.2 dtk), "notify" (notifikasi HP/pesan), "drop" (tetesan air), "paper" (kertas), "chalk" (kapur/menulis), "beep" (layar digital), "blip" (game 8-bit), "laser" (sci-fi), "step" (langkah kaki), "pageflip" (halaman dibalik), "bubble" (gelembung/pop lucu kecil), "snap" (jentik jari, ide muncul), "clap" (tepuk tangan).
+- Hentakan & umpan balik: "impact" (hantaman sinematik untuk momen besar), "kick" (dentum bass pendek, cocok untuk angka/teks yang menghentak), "riser" (ketegangan ~0.9 dtk; jadwalkan 0.9 dtk SEBELUM momen puncak), "swipe" (geser cepat/kartu masuk), "whip" (cambuk/gerak sangat cepat), "glitch" (error digital, layar rusak), "stamp" (stempel/cap mendarat), "slide" (peluit naik, lucu), "scratch" (piringan tergores: "tunggu dulu"/plot twist), "buzzer" (salah/gagal/larangan), "correct" (benar/berhasil), "tada" (hasil akhir/pengumuman), "magic" (transformasi/keajaiban).
+Suara yang sama yang diulang cepat (mis. balok tangga, tumpukan koin) otomatis naik nadanya seperti tangga nada, dan warna suara menyesuaikan gaya animasi secara otomatis.
+Whoosh di transisi, boom di awal scene, dan tick saat kata teks muncul SUDAH otomatis - jangan ditambahkan lagi di detik 0. Pakai 1-4 efek per scene, selaras dengan gerakan.
+
+## Arahan gaya
+- Objek utama besar di area ilustrasi, boleh 3D (box/cylinder/sphere/extrude/text3d) atau 2D, sesuai arahan gaya.
+- Beri sedikit kemiringan pada objek 3D (`rx: -0.3` s.d. `-0.5`) agar volumenya terasa, dan selalu ada gerakan halus.
+- Tambahkan `s.shadow` di bawah objek yang berdiri.
+- RITME ENERGIK: objek utama sudah MASUK dalam 0.0-0.35 dtk (`s.spring` "snappy"/"bouncy": jatuh dari atas, terbang dari samping, atau membesar).
+- Sebar momen gerakan di SEPANJANG durasi scene, jangan dihabiskan di awal. Kalau ada "Waktu kata diucapkan", taruh aksen (pop, burst, centang, perubahan) tepat saat kata pentingnya terdengar.
+- Tidak boleh ada momen diam: selalu ada rotasi, bounce, pulsa, atau getar. Klimaks/aksen di sekitar 55-80% durasi.
+- Hitung waktu relatif terhadap `s.dur` bila perlu (mis. `s.at(s.dur * 0.6)`). Semua animasi masuk selesai sebelum `s.dur - 0.25`.
+
+## Orang & wajah
+- Utamakan benda dan metafora visual, hindari manusia detail. Kalau sebuah scene benar-benar butuh orang, gambar dengan caramu sendiri secara sederhana dan menyatu dengan gaya (siluet, figur garis, tangan memegang benda, bayangan), bukan tokoh yang sama terus.
+- TANPA WAJAH sama sekali: jangan menggambar mata, hidung, mulut, alis, atau pipi merona pada manusia, hewan, maupun benda (matahari, HP, jam, makanan tidak diberi muka/ekspresi). Perasaan ditunjukkan lewat pose tubuh, gerakan, warna, dan simbol (tanda tanya, awan hujan, hati, garis gerak).
+- Jangan menggambar emoji wajah/smiley dalam bentuk apa pun.
+- Aturan tanpa wajah ini MENANG atas arahan gaya: kalau arahan gaya atau brief menyebut "tersenyum", "imut", atau ekspresi, wujudkan lewat warna, bentuk, dan gerak, tetap tanpa mata/mulut.
+
+## Objek harus langsung dikenali
+- Gambar benda yang disebut di brief sebagai benda itu sendiri, BUKAN diganti bola/kubus polos atau cuma salah satu bagiannya. Motor harus terlihat motor, HP terlihat HP.
+- Rakit objek dari 5-15 bentuk dasar sesuai bagian-bagian khasnya (roda, badan, jok, stang, lampu; layar, tombol, kamera; dst.), pakai sudut pandang yang paling mudah dikenali (biasanya samping atau 3/4).
+- Bungkus semua bagian satu objek di `s.group({ x, y, rotate, scale }, () => { ... })` supaya bergerak bersama; koordinat x/y bagian relatif ke posisi group.
+- Satu objek utama yang detail lebih baik daripada banyak objek polos.
+- Kode rapi, maksimal sekitar 160 baris.
+
+## Komposisi penuh (wajib)
+- Isi layar seperti poster, bukan objek kecil di tengah latar kosong: objek atau adegan utama mengisi 65-95% lebar dan tinggi area ilustrasi, dan bagian atas area ikut terpakai.
+- TITIK FOKUS DI TENGAH: yang sedang dibicarakan narasi atau yang disorot (bagian yang bergerak, angka, kata kunci, label, panah, burst) HARUS berada di zona tengah, kira-kira x 168-552, y 240-560, tempat mata penonton langsung melihat. Yang boleh mengisi pinggir dan tepi layar hanya pendukung: badan objek yang besar, latar, dan dekorasi.
+- TULISAN JANGAN MENUTUPI OBJEK: yang besar itu objeknya, bukan tulisannya. Judul size 30-44, label 14-20, kata efek maksimal 44, dan jangan banyak tulisan sekaligus. Taruh di ruang kosong: boleh sedikit kena tepi objek, tapi tidak boleh menutupi bagian yang sedang dibahas. Pengecualian hanya kalau tulisan itu sendiri objek utamanya (angka besar, kutipan, atau gaya tipografi).
+- Kalau objeknya besar dan bagian yang dibahas ada di pinggirnya, geser atau perbesar objeknya (`s.group` dengan x, y, scale dari `s.spring`) sampai bagian itu masuk zona tengah. Saat fokus pindah ke bagian lain, geser lagi, jangan biarkan fokus berada di pinggir.
+- Sering-seringlah pakai close-up: objek besar boleh terpotong tepi atas atau samping layar supaya terasa sinematik, asal titik fokusnya utuh di zona tengah. Tulisan, label, angka, dan panel kecil WAJIB utuh di x 60-660, karena di luar itu terpotong tepi layar.
+- Subtitle boleh menimpa objek: benda besar, lantai, dan latar boleh lewat di belakangnya, jadi jangan memendekkan objek demi memberi ruang subtitle.
+- Contoh kode di bawah menggambar objek lebih kecil dan lebih rendah daripada aturan ini: pakai pola kodenya, tapi besarkan ukurannya dan pakai area yang lebih penuh.
+
+## Bebas berkreasi (bikin keren, jangan template)
+- Kamu art director sekaligus animator. Setiap scene harus terasa dirancang, bukan pola yang diulang: ganti komposisi (close-up besar, wide, dari atas, objek terpotong tepi layar), skala, dan arah gerak antar scene.
+- Cari metafora visual yang segar dan tak terduga untuk pesannya, bukan ilustrasi harfiah yang membosankan.
+- Bangun kedalaman: lapisan depan/tengah/belakang, bayangan, parallax kecil, partikel, cahaya. Boleh `ctx` mentah untuk gradient, glow (`shadowBlur`), dan blend, asal dibungkus `ctx.save()`/`ctx.restore()` dan tetap selaras dengan gaya.
+- Kata kunci boleh jadi tipografi bergerak (`s.words` / text3d / tag) bila menguatkan, tapi jangan menggandakan subtitle.
+
+## Kualitas gerak (standar motion designer profesional)
+- Objek masuk dan pindah dengan `s.spring` (preset utama: "snappy" dan "bouncy"), bukan `s.lerp` dengan `s.p` atau kecepatan tetap. Gerak linear hanya untuk yang memang konstan: roda, awan, konveyor.
+- Contoh gaya di bawah masih banyak memakai `s.at` dan `s.pop`: tiru tampilannya, tapi gerakannya JANGAN. Objek, panel, label, dan judul yang masuk atau pindah WAJIB pakai `s.spring` atau `s.stagger`, dan judul pakai `s.words` kecuali arahan gaya meminta bentuk tulisan sendiri. `s.at` hanya untuk detail kecil seperti garis dan sparkle.
+- Gabungkan beberapa sifat dari satu nilai `k`: posisi + skala + sedikit rotasi. Hanya memudarkan alpha terasa murah. Jarak masuk yang pas: 40-160px atau dari luar layar, skala dari 0.8-0.9 (bukan selalu dari 0).
+- Elemen berkelompok TIDAK masuk bersamaan: `s.stagger` dengan jeda 0.04-0.08 dtk. Satu arah masuk yang konsisten per kelompok.
+- Satu gerakan besar pada satu waktu, dan satu titik fokus. Saat fokus pindah, yang lama mengecil, meredup, atau keluar lewat `s.keys` (keluar pakai `s.ease.in` dan lebih cepat daripada masuknya), jangan menumpuk sampai penuh.
+- Follow-through: bagian yang menempel menyusul sedikit terlambat dari induknya (spring dengan start lebih lambat 0.03-0.08 dtk), dan ada antisipasi kecil ke arah berlawanan sebelum gerakan besar.
+- Setelah masuk, objek tetap hidup tapi kecil: `s.wave` amplitudo 3-8px atau 0.01-0.04 radian. Goyangan besar terus-menerus terlihat amatir.
+- Hierarki jelas: objek utama jauh lebih besar dari pendukung, warna aksen hanya untuk yang paling penting. Lapisan depan bergerak lebih jauh daripada lapisan belakang.
+- Bentuk rapi dan disengaja: teks sejajar tepat, jarak antar elemen seragam, panel pakai `s.card`, judul pakai `s.words` bila cocok dengan gaya. Kalau arahan gaya meminta rasa tertentu (coretan, kasar, retro), arahan gaya yang menang; prinsip gerak di atas tetap dipakai.
+
+## Finishing: RAPI (bukan coretan)
+Engine otomatis menggambar rapi: garis lurus tanpa goyangan, isian polos tanpa arsiran, bentuk berisi tanpa outline (beri `stroke` kalau mau outline), objek 3D flat-shaded tanpa tepi tinta, bola mulus, dan `s.text` memakai font sans. Jangan meniru efek coretan atau krayon.
+
+## Arahan gaya dari kreator (PRIORITAS UTAMA)
+Gaya animasi "Cara Kerja": Video penjelas CARA KERJA dalam SATU SHOT 3D TANPA TRANSISI: seluruh video membahas SATU benda yang cocok dengan topiknya (laptop, ponsel, kulkas, celengan, mesin kopi, jam, sepeda, pompa, otak/jantung sebagai model) yang dibuka dan dibongkar pelan-pelan. Engine tidak memberi transisi dan tidak menggerakkan kamera, jadi KAMU kameranya. WAJIB 3D SUNGGUHAN, bukan gambar datar: salin helper 3D dari contoh gaya ini (`view`, `P`, `box`, `quad`, `ring`, `shade`, `mixHex`), lalu rakit benda dari banyak `box` (alas, dinding, tutup, komponen) dengan koordinat dunia x kanan, y belakang, z atas; tiap box otomatis menampilkan sisi atas/depan/samping yang menghadap kamera dengan terang-gelap dari arah cahaya. Bagian yang bergerak diputar di 3D lewat opsi `T` (mis. tutup berputar di engsel, pintu membuka, roda berputar), detail permukaan (layar, tombol, label, bilah kipas) pakai `quad`/`ring` di bidang 3D. Gambar dari belakang ke depan dan dari bawah ke atas. Warna box selalu hex (#rrggbb), jangan rgb(). CARA MENULIS: (a) tulis fungsi `world(st, yaw)` yang menggambar benda LENGKAP; SALIN persis di semua scene supaya bentuk, ukuran, dan warnanya tidak berubah; `st` berisi keadaan yang berubah (tutup 0..1, layar menyala, casing terangkat 0..1, suhu, putaran). (b) kamera `{ x, y, z, yaw }` dibuat dengan `aim([x, y, z], zoom, yaw)` (titik 3D di tengah layar), definisikan kamera bernama di atas (`CAM_WHOLE`, `CAM_BASE`, ...) dan gambar lewat `shoot(cam, st)` TANPA clip: benda boleh mengisi layar sampai ke atas dan berada di belakang judul. (c) KESINAMBUNGAN: kamera scene ini DIMULAI persis dari kamera akhir scene sebelumnya lalu bergerak halus dengan `move(a, b, t0, t1)` ke bagian yang sedang dibahas dan BERHENTI TEPAT di kamera akhirnya: lihat utuh sambil berputar pelan (yaw berubah 0.3-0.5), mendekat ke komponen (zoom 1.8-2.5), geser ke komponen lain. Tulis kamera awal dan akhir di komentar baris pertama (`// kamera: CAM_WHOLE -> CAM_BASE`). (d) BONGKAR: casing/penutup terangkat lurus ke atas dan memudar sehingga komponen di dalamnya terlihat, lalu komponen itu bekerja (memanas jadi oranye, kipas berputar, cairan mengalir, roda gigi berputar). TATA LETAK LAYAR (tidak ikut zoom, DIGAMBAR TERAKHIR di atas benda): (1) JUDUL RINGKAS DUA BARIS di kiri atas: label langkah mono kecil tinta "02 / 05" size 16 dengan garis pendek di y 66 (x 72); baris pertama `s.text3d` size 38 depth 0 `align: "left"` tinta #1c2433 di y 104 (x 70) dengan pendar terang di sekitarnya (`ctx.shadowColor = "rgba(238,242,247,0.95)"`, `ctx.shadowBlur = 22`, gambar dua kali); baris kedua size 34 huruf PUTIH di atas PLAT STABILO biru kobalt #3b5bdb (rect r 10 bergaris tepi putih tebal 3, x 62, y 126, tinggi 46, lebar mengikuti teks dan memanjang masuk) di y 149. Judul berganti per bagian. Judul boleh sedikit kena benda, tapi tidak boleh menutupi bagian yang sedang dibahas. (2) METERAN BULAT KECIL di kanan atas (pusat 596, 104, r 45): lingkaran putih di belakangnya, busur 270° abu #dbe2eb yang TERISI warna keadaan sesuai angka, angka `s.text3d` size 26 di tengah yang MENGHITUNG mengikuti gerakan, satuan kecil abu di bawahnya ("°C prosesor", "sudut layar", "% terbuka"), dan kapsul putih kecil di bawah meteran berisi titik warna + kata keadaan kapital: abu #6b7685 "MATI"/"TERTUTUP", biru #3b5bdb "BEKERJA"/"TERBUKA", hijau #12b886 "MENYALA"/"DINGIN", oranye #ff7a45 "PANAS", merah #e03131 "BAHAYA". DETAIL: label komponen `s.tag("← KIPAS", x, y, { size: 16, fill: "#1c2433" })` yang menempel di komponennya (posisi layar dari `toScreen(cam, [x, y, z])`); kata efek stiker miring `s.text3d("WUUSH!", x, y, { size: 40, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(t0, 0.4) })` hanya di momen puncak; boleh kartu perbesaran (kotak putih r 12 dengan judul mono kecil "DIPERBESAR") untuk detail kecil. Palet dingin dan bersih: aluminium #c3ccd8 / #aeb8c6, permukaan terang #d5dce6, gelap #2a3140 / #1c2433, papan sirkuit biru #22577a, aksen biru kobalt #3b5bdb dan biru langit #4dabf7, hijau #12b886 untuk yang aktif/aman, oranye #ff7a45 untuk panas, tembaga #d08850 untuk pipa/kabel. Outline tinta tipis #1c2433. Gerakan mekanis sebab-akibat yang tenang dan presisi; tanpa burst energi, tanpa coretan, tanpa tokoh kartun, tanpa wajah. Pakai tema "paper" untuk semua scene agar latarnya menyambung.
+
+Ikuti arahan ini untuk warna, bentuk, tekstur, suasana, dan cara gerak; kalau bertentangan dengan arahan gaya di atas, arahan kreator yang menang. Kontrak dan batas kanvas tetap wajib dipatuhi. Latar tetap digambar engine, jadi pilih warna objek yang kontras dengan tema latar scene. Boleh memakai warna hex sendiri dan `ctx` mentah (gradient, `shadowBlur` untuk glow, pola, `globalCompositeOperation`) kalau arahan ini membutuhkannya; selalu bungkus dengan `ctx.save()`/`ctx.restore()`.
+
+{{CONTOH}}
+
+## Contoh pola gerak (ambil polanya, bukan warna atau bentuknya)
+```js
+// judul masuk per kata, tiga kartu menyusul, lalu kartu lain meredup saat fokus pindah ke yang terakhir
+s.sfx("swipe", 0.1, 0.7);
+[0, 1, 2].forEach((i) => s.sfx("pop", 0.55 + i * 0.12, 0.6, 1 + i * 0.1));
+s.sfx("ding", 1.7);
+s.words("Tiga langkah kecil", 360, 210, { size: 46, start: 0.05, accent: "kecil", accentColor: s.c.orange });
+const focus = s.keys([[1.6, 0], [1.95, 1]]);
+["Bangun", "Bergerak", "Ulangi"].forEach((label, i) => {
+  const k = s.stagger(i, 0.5, 0.12, "snappy");
+  if (k <= 0) return;
+  const last = i === 2;
+  s.group({
+    x: 360 + s.lerp(140, 0, k),
+    y: 370 + i * 135 + s.wave(0.5, 4, i),
+    scale: s.lerp(0.88, 1, k) * (last ? 1 + 0.08 * focus : 1 - 0.05 * focus),
+    alpha: s.clamp(k * 2, 0, 1) * (last ? 1 : 1 - 0.55 * focus),
+  }, () => {
+    s.card(-250, -52, 500, 104, { fill: last ? [s.c.orange, s.c.red] : s.c.white, r: 26 });
+    s.text(label, 0, 0, { size: 30, color: last ? s.c.white : s.c.navy });
+  });
+});
+```
+
+## Tugas
+Tulis kode animasi untuk {{K}} scene berikut. Setiap scene berdiri sendiri (kode tiap scene hanya bisa melihat `s` dan `ctx`). Variasikan gerakan dan komposisi antar scene.
+
+{{SCENES}}
+
+## Format jawaban (penting)
+Tulis SEMUA scene di dalam SATU blok kode ```js saja, supaya bisa disalin sekali klik. Pisahkan tiap scene dengan baris penanda persis seperti ini:
+
+```js
+{{FORMAT}}
+```
+
+Jangan memecah jawaban menjadi beberapa blok kode. Pakai nomor scene persis seperti di atas. Jangan gunakan artifact/canvas dan jangan menambahkan penjelasan di luar format yang diminta.
+</script>
 <script type="text/plain" id="tpl-ide">
 Kamu adalah penulis konten video pendek motivasi berbahasa Indonesia (TikTok, Reels, Shorts, Threads) yang terkenal karena idenya selalu segar dan tidak pasaran.
 Gaya video: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan. Durasi 30-45 detik.
@@ -249,7 +421,13 @@ const EASE = {
 const SPR = { snappy: [16, 0.72], bouncy: [11, 0.4], heavy: [7, 0.55], soft: [6, 0.9], gentle: [6, 0.9] };
 const FONT = '"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif';
 
-function createS(ctx, t, dur, sfxLog) {
+Object.assign(EASE, {
+  back: (k) => { k = CL(k); const c = 1.70158; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); },
+  elastic: (k) => { k = CL(k); return k === 0 || k === 1 ? k : Math.pow(2, -10 * k) * Math.sin((k * 10 - 0.75) * (2 * Math.PI) / 3) + 1; },
+  outExpo: (k) => { k = CL(k); return k === 1 ? 1 : 1 - Math.pow(2, -10 * k); },
+  inOutExpo: (k) => { k = CL(k); return k === 0 || k === 1 ? k : k < 0.5 ? Math.pow(2, 20 * k - 10) / 2 : (2 - Math.pow(2, -20 * k + 10)) / 2; }
+});
+function createS(ctx, t, dur, sfxLog, theme) {
   const dim = (c) => (c === undefined || c === "none" ? null : c);
   const withAlpha = (a, fn) => { ctx.save(); ctx.globalAlpha *= a ?? 1; fn(); ctx.restore(); };
   const paint = (o, fillDefault) => {
@@ -339,6 +517,41 @@ function createS(ctx, t, dur, sfxLog) {
     },
     sfx: (name, at, vol = 1, pitch = 1) => { sfxLog.push({ name, at, vol, pitch }); }
   };
+  const dk = theme === "night";
+  s.p = dur ? CL(t / dur) : 0; s.theme = theme || "paper"; s.lerp = (a, b, k) => a + (b - a) * k;
+  s.rand = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+  s.c = { ink: dk ? "#f1f5f9" : "#1c2433", paper: "#f4efe3", red: "#e03131", pink: "#f06595", orange: "#ff7a45", yellow: "#fcc419", green: "#37b24d", teal: "#12b886", blue: "#3b5bdb", navy: "#1e2a5a", purple: "#7048e8", brown: "#8d5a3b", sky: "#4dabf7", white: "#ffffff", gray: "#868e96", glow: "#ffe066" };
+  const INKC = s.c.ink;
+  s.ellipse = (cx, cy, rx, ry, o = {}) => withAlpha(o.alpha, () => { ctx.beginPath(); ctx.ellipse(cx, cy, Math.max(0, rx), Math.max(0, ry), 0, 0, Math.PI * 2); paint({ stroke: INKC, ...o }, "none"); });
+  s.curve = (pts, o = {}) => withAlpha(o.alpha, () => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length - 1; i++) ctx.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2); const l = pts[pts.length - 1]; ctx.lineTo(l[0], l[1]); if (o.closed) ctx.closePath(); paint({ stroke: INKC, ...o }, "none"); });
+  s.dash = (x1, y1, x2, y2, o = {}) => withAlpha(o.alpha, () => { ctx.setLineDash([10, 9]); path([[x1, y1], [x2, y2]]); paint({ stroke: INKC, ...o }, "none"); ctx.setLineDash([]); });
+  s.ground = (y = 760, x1 = 60, x2 = 660, o = {}) => s.line(x1, y, x2, y, { stroke: INKC, ...o });
+  s.check = (x, y, z, o = {}) => s.polyline([[x - z * 0.5, y], [x - z * 0.1, y + z * 0.4], [x + z * 0.5, y - z * 0.4]], { stroke: s.c.green, width: 6, ...o });
+  s.cross = (x, y, z, o = {}) => { s.line(x - z / 2, y - z / 2, x + z / 2, y + z / 2, { stroke: s.c.red, width: 6, ...o }); s.line(x + z / 2, y - z / 2, x - z / 2, y + z / 2, { stroke: s.c.red, width: 6, ...o }); };
+  s.sparkle = (x, y, z, o = {}) => s.shape([[x, y - z], [x + z * 0.22, y - z * 0.22], [x + z, y], [x + z * 0.22, y + z * 0.22], [x, y + z], [x - z * 0.22, y + z * 0.22], [x - z, y], [x - z * 0.22, y - z * 0.22]], { fill: s.c.yellow, stroke: "none", ...o });
+  s.rays = (cx, cy, r1, r2, n = 12, o = {}) => withAlpha((o.alpha ?? 1) * (o.draw === undefined ? 1 : CL(o.draw)), () => { for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; s.line(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1, cx + Math.cos(a) * r2, cy + Math.sin(a) * r2, { stroke: o.stroke ?? s.c.yellow, width: o.width ?? 4 }); } });
+  s.burst = (x, y, r, o = {}) => { const k = o.draw ?? 0; if (k <= 0 || k >= 1) return; const n = o.count ?? 10; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; s.line(x + Math.cos(a) * r * (0.5 + k), y + Math.sin(a) * r * (0.5 + k), x + Math.cos(a) * r * (0.9 + 1.3 * k), y + Math.sin(a) * r * (0.9 + 1.3 * k), { stroke: o.stroke ?? s.c.orange, width: 5, alpha: 1 - k }); } };
+  s.shadow = (x, y, rx) => s.ellipse(x, y, rx, rx * 0.22, { fill: "rgba(20,28,45,0.22)", stroke: "none" });
+  s.card = (x, y, w, h, o = {}) => withAlpha(o.alpha, () => {
+    const r = o.r ?? 28;
+    if (o.shadow !== false) { ctx.save(); ctx.shadowColor = "rgba(20,28,45,0.22)"; ctx.shadowBlur = 36; ctx.shadowOffsetY = 14; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore(); }
+    let f = o.fill ?? "#fff"; if (Array.isArray(f)) { const g = ctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, f[0]); g.addColorStop(1, f[1]); f = g; }
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fillStyle = f; ctx.fill();
+    if (o.stroke) { ctx.strokeStyle = o.stroke; ctx.lineWidth = o.width ?? 2; ctx.stroke(); }
+  });
+  s.words = (str, x, y, o = {}) => {
+    const size = o.size ?? 44, gap = o.gap ?? 0.07, lh = o.lineHeight ?? size * 1.25, maxW = o.width ?? 600, acc = [].concat(o.accent || []);
+    ctx.save(); ctx.font = `800 ${size}px ${FONT}`;
+    const ws = str.split(/\s+/), sp = ctx.measureText(" ").width, lines = [[]]; let cw = 0;
+    ws.forEach((w) => { const wd = ctx.measureText(w).width; if (cw + wd > maxW && lines[lines.length - 1].length) { lines.push([]); cw = 0; } lines[lines.length - 1].push({ w, wd }); cw += wd + sp; });
+    ctx.restore();
+    let idx = 0; const top = y - ((lines.length - 1) * lh) / 2;
+    lines.forEach((ln, li) => { const tw = ln.reduce((a, b) => a + b.wd + sp, -sp); let cx = (o.align === "left" ? x : x - tw / 2);
+      ln.forEach((it) => { const k = spring((o.start ?? 0) + idx++ * gap, o.spring ?? "smooth"), mode = o.mode ?? "rise";
+        if (k > 0) { const hi = acc.some((a) => it.w.replace(/[.,!?]/g, "").toLowerCase() === String(a).toLowerCase());
+          s.text3d(it.w, cx, top + li * lh + (mode === "slide" ? 0 : (1 - k) * size * 0.6), { size, depth: 0, align: "left", color: hi ? (o.accentColor ?? "#ff7a45") : (o.color ?? INKC), alpha: (o.alpha ?? 1) * CL(k * 2), draw: mode === "pop" ? k : 1, rotate: 0 }); }
+        cx += it.wd + sp; }); });
+  };
   return s;
 }
 
@@ -400,7 +613,7 @@ function draw() {
   if (sc.fn instanceof Error) msg = "Scene " + (i + 1) + ": " + sc.fn.message;
   else {
     const log = [];
-    try { ctx.save(); sc.fn(createS(ctx, lt, sc.dur, log), ctx); ctx.restore(); sc.sfx = log; }
+    try { ctx.save(); sc.fn(createS(ctx, lt, sc.dur, log, sc.theme), ctx); ctx.restore(); sc.sfx = log; }
     catch (e) { ctx.restore(); msg = "Scene " + (i + 1) + " @ " + lt.toFixed(2) + "s: " + e.message; }
   }
   if (msg !== errShown) { errShown = msg; $("err").textContent = msg; }
@@ -443,13 +656,22 @@ const P = {
     return $("tpl-narasi").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
     const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
-    return `Kamu menulis kode animasi canvas untuk video vertikal. Tiap scene adalah ISI fungsi JavaScript yang dipanggil setiap frame dengan (s, ctx).\n\n${API}\n\nAturan:\n- Kode scene hanya memakai s dan ctx. Semua nilai dihitung dari s.t (tanpa state global, tanpa Math.random, tanpa DOM atau fetch).\n- Deklarasi const milik sendiri di tiap scene (warna dll.), jangan bergantung ke scene lain.\n- Layout vertikal 720x1280. Sisakan area atas (y<190) untuk judul. Teks Indonesia, ukuran terbaca.\n- Tambahkan s.sfx untuk momen penting.\n- Animasi harus selesai kira-kira sebelum s.dur.\n\nContoh satu scene:\n${DEFAULT.replace(/^\/\/ =+ SCENE 1 =+\n/, "")}\n\nScene yang harus dibuat:\n${list.map(([i, sc]) => `Scene ${i} (${sc.seconds} dtk)\nNarasi: ${sc.narration}\nVisual: ${sc.camera}\nKata ditekankan: ${sc.emphasis || "-"}\nGerak kamera: ${sc.move || "-"}`).join("\n\n")}\n\n${JSONONLY}\nFormat: {"scenes":[{"index":${list[0][0]},"code":"...kode sebagai string JSON..."}]}`; }
+    const blocks = list.map(([i, sc]) => `### SCENE ${i}\n- Teks narasi: "${sc.narration}"\n- Visual: ${sc.camera}\n- Tema latar: ${sc.theme}\n- Durasi: ${sc.seconds.toFixed(2)} detik (gerakan harus mengisi seluruh durasi ini)\n- Waktu kata diucapkan (detik dari awal scene): ${wordTimes(sc.narration, sc.seconds)}`).join("\n\n");
+    const v = { K: list.length, SCENES: blocks, CONTOH: $("ex3").value.trim(), FORMAT: list.map(([i]) => `// ===== SCENE ${i} =====\n// ...kode scene ini...`).join("\n\n") };
+    return $("tpl-anim").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]).replace(/\n{3,}/g, "\n\n"); }
 };
+function wordTimes(text, dur) {
+  const w = text.trim().split(/\s+/), start = 0.2, end = Math.max(start + 1, dur - 0.6), wt = w.map((x) => x.length + 2), tot = wt.reduce((a, b) => a + b, 0);
+  let acc = 0;
+  return w.map((x, i) => { const t = start + (end - start) * acc / tot; acc += wt[i]; return x + " " + t.toFixed(1); }).join(" \u00b7 ");
+}
 const panelHtml = (n, head) => `<div id="p${n}" ${n > 1 ? "hidden" : ""}>${head}<div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="send${n}">Kirim ke Claude</button><button id="copy${n}">Salin prompt</button></div><textarea id="in${n}" style="height:90px;margin-top:10px" placeholder="Tempel jawaban Claude di sini" aria-label="Jawaban Claude langkah ${n}"></textarea><button class="pri" id="ok${n}" style="margin-top:8px">Proses jawaban</button><div id="out${n}" class="stat" style="margin-top:8px" role="status"></div></div>`;
 $("panels").innerHTML =
   panelHtml(1, `<label for="topic">Topik video</label><input id="topic" class="fld" placeholder="contoh: disiplin pagi"><label for="vdur">Durasi video</label><select id="vdur" class="fld"><option value="30">30 detik</option><option value="50">50 detik</option><option value="60" selected>1 menit</option></select>`) +
   panelHtml(2, `<p class="hint" id="idea2" style="margin-top:0">Pilih ide di langkah 1 dulu.</p>`) +
-  panelHtml(3, `<label for="grp">Kelompok scene (4 scene per prompt)</label><select id="grp" class="fld"><option value="0">Scene 1-4</option></select>`);
+  panelHtml(3, `<label for="grp">Kelompok scene (4 scene per prompt)</label><select id="grp" class="fld"><option value="0">Scene 1-4</option></select><label for="ex3">Contoh gaya (opsional)</label><textarea id="ex3" class="fld" style="height:56px" placeholder="Tempel bagian Contoh gaya Cara Kerja dari prompt Animasi Satset"></textarea>`);
+try { $("ex3").value = localStorage.getItem("ex3") || ""; } catch (e) {}
+$("ex3").addEventListener("input", () => { try { localStorage.setItem("ex3", $("ex3").value); } catch (e) {} });
 function showStep(n) { document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.s === n)); [1, 2, 3].forEach((i) => ($("p" + i).hidden = i !== n)); }
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => showStep(+b.dataset.s)));
 const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : ""; $("out" + n).textContent = m; };
@@ -457,7 +679,7 @@ const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : "";
   const prompt = () => { try { return P[n](); } catch (e) { say(n, e.message, true); return null; } };
   $("send" + n).onclick = () => { const p = prompt(); if (!p) return; navigator.clipboard?.writeText(p).catch(() => {}); window.open("https://claude.ai/new?q=" + encodeURIComponent(p), "_blank"); say(n, "Claude dibuka. Jika kotak masih kosong, prompt sudah tersalin: tempel dengan Ctrl+V."); };
   $("copy" + n).onclick = async () => { const p = prompt(); if (!p) return; try { await navigator.clipboard.writeText(p); say(n, "Prompt tersalin."); } catch { say(n, "Gagal menyalin. Izinkan akses clipboard di browser.", true); } };
-  $("ok" + n).onclick = () => { try { DONE[n](readJson($("in" + n).value)); } catch (e) { say(n, e.message, true); } };
+  $("ok" + n).onclick = () => { try { DONE[n](n === 3 ? $("in3").value : readJson($("in" + n).value)); } catch (e) { say(n, e.message, true); } };
 });
 const MOVES = ["push", "pull", "pan-left", "pan-right", "tilt-up", "tilt-down", "roll", "orbit", "crash", "handheld", "shake"], THEMES = ["paper", "dusk", "night"];
 let copyBuf = [];
@@ -496,9 +718,11 @@ const DONE = {
     renderScenes();
     showStep(3);
   },
-  3: (d) => {
-    if (!Array.isArray(d.scenes) || d.scenes.some((x) => !x.index || typeof x.code !== "string")) throw new Error("Format salah: tiap scene butuh index dan code");
-    d.scenes.forEach((x) => { S.codes[x.index] = x.code.replace(/^\s*\/\/ =+ SCENE.*\n/, ""); });
+  3: (txt) => {
+    const m = txt.match(/```(?:js|javascript)?[ \t]*\n([\s\S]*?)```/), code = m ? m[1] : txt;
+    const marks = [...code.matchAll(/^\/\/ ={3,} SCENE\s*(\d+) ={3,}[ \t]*$/gm)];
+    if (!marks.length) throw new Error("Penanda // ===== SCENE n ===== tidak ditemukan. Salin seluruh blok kode jawaban Claude.");
+    marks.forEach((x, k) => { S.codes[+x[1]] = code.slice(x.index + x[0].length, k + 1 < marks.length ? marks[k + 1].index : code.length).trim(); });
     const ids = Object.keys(S.codes).map(Number).sort((a, b) => a - b);
     $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
     playing = false; $("play").textContent = "Putar"; parse();

@@ -63,7 +63,12 @@ label{display:block;font-weight:700;margin:0 0 6px}
       <progress id="prog" value="0" max="1" style="flex:1;accent-color:var(--ac)"></progress>
       <span class="time" id="pct">0%</span>
     </div>
-    <p class="hint">Video 720x1280, 30 fps, dengan suara narasi bila audio sudah ada (efek sfx belum). Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
+    <p class="hint">Video 720x1280, 30 fps. Suara narasi, efek suara, dan musik latar ikut diekspor. Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
+    <div class="card" style="margin-top:12px;padding:12px">
+      <label style="display:flex;gap:8px;align-items:center;margin:0 0 8px"><input type="checkbox" id="subOn" checked> Subtitle di layar</label>
+      <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="sfxOn" checked> Efek suara <input type="range" id="sfxVol" min="0" max="1" step="0.05" value="0.6" style="flex:1;accent-color:var(--ac)" aria-label="Volume efek suara"></label>
+      <div class="bar" style="margin:8px 0 0"><button id="musBtn">Pilih musik latar</button><input type="file" id="musFile" accept="audio/*" hidden><input type="range" id="musVol" min="0" max="0.5" step="0.01" value="0.12" aria-label="Volume musik" style="accent-color:var(--ac)"><span class="stat" id="musName">tanpa musik</span></div>
+    </div>
     <div class="err" id="err" role="alert"></div>
   </div>
   <div>
@@ -579,7 +584,7 @@ function parse() {
     const fn = (() => { try { return new Function("s", "ctx", code); } catch (e) { return e; } })();
     return { code, fn, dur: old[i]?.dur ?? 6.5, dark: old[i]?.dark ?? /const DARK = true/.test(code), sfx: [] };
   });
-  recalc(); buildList(); T = 0; draw();
+  recalc(); buildList(); collectSfx(); T = 0; draw();
 }
 function recalc() { total = scenes.reduce((a, c) => a + c.dur, 0); $("seek").max = total || 1; }
 function buildList() {
@@ -617,6 +622,7 @@ function draw() {
     try { ctx.save(); sc.fn(createS(ctx, lt, sc.dur, log, sc.theme), ctx); ctx.restore(); sc.sfx = log; }
     catch (e) { ctx.restore(); msg = "Scene " + (i + 1) + " @ " + lt.toFixed(2) + "s: " + e.message; }
   }
+  if ($("subOn").checked) drawSub(sc, lt);
   if (msg !== errShown) { errShown = msg; $("err").textContent = msg; }
   $("stat").textContent = `Scene ${i + 1} dari ${scenes.length} \u2022 sfx dicatat: ${sc.sfx.length}`;
 }
@@ -666,12 +672,6 @@ function renderMarks() {
   const b = AUD.bounds, el = $("marks");
   el.innerHTML = b.length < 2 ? "" : `<p class="hint">Awal tiap scene (detik). Total ${AUD.buf.duration.toFixed(2)} dtk. Ubah angkanya untuk menggeser batas.</p>` + S.scenes.map((x, i) => i >= b.length - 1 ? "" : `<div class="row" style="grid-template-columns:auto 84px 1fr"><b>${i + 1}</b><input type="number" step="0.05" min="0" value="${b[i].toFixed(2)}" data-k="${i}" ${i === 0 ? "disabled" : ""} aria-label="Awal scene ${i + 1}"><span class="stat">${esc(x.narration.slice(0, 48))}</span></div>`).join("");
   el.querySelectorAll("input").forEach((inp) => (inp.onchange = () => { const k = +inp.dataset.k; b[k] = Math.min(Math.max(+inp.value, b[k - 1] + 1), b[k + 1] - 1); applyAudio(); }));
-}
-function stopAudio() { try { AUD.src?.stop(); } catch (e) {} AUD.src = null; }
-function startAudio() {
-  stopAudio(); if (!AUD.buf) return;
-  const c = getAC(); c.resume(); const s0 = c.createBufferSource(); s0.buffer = AUD.buf; s0.connect(c.destination);
-  const off = (AUD.bounds[(sceneIds[0] || 1) - 1] || 0) + T; if (off < AUD.buf.duration) { s0.start(0, off); AUD.src = s0; }
 }
 function setAudio(buf, bounds, up) { AUD.buf = buf; AUD.bounds = bounds; AUD.up = up; $("out4").textContent = "Audio siap: " + buf.duration.toFixed(1) + " dtk. Durasi scene mengikuti audio."; applyAudio(); }
 function wireVoice() {
@@ -802,10 +802,94 @@ const DONE = {
     const ids = Object.keys(S.codes).map(Number).sort((a, b) => a - b);
     sceneIds = ids; $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
     playing = false; $("play").textContent = "Putar"; parse();
-    scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) { sc.dur = m.seconds; sc.theme = m.theme; sc.dark = m.theme === "night"; } });
+    scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) { sc.dur = m.seconds; sc.theme = m.theme; sc.dark = m.theme === "night"; sc.nar = m.narration; sc.emph = m.emphasis; } });
     recalc(); buildList(); draw();
     say(3, ids.length + " scene animasi dimuat (" + ids.join(", ") + "). Putar untuk cek, lalu ambil kelompok berikutnya.");
   }
+};
+
+/* ===== SFX, SUBTITLE, MUSIK ===== */
+const MUS = { buf: null };
+const SFXD = {
+  pop: [["sine", 650, 260, .1, .6]], tick: [["square", 2200, 2200, .025, .15]], click: [["square", 1400, 800, .05, .22]], tap: [["sine", 320, 140, .07, .6]],
+  thud: [["sine", 130, 38, .3, 1], ["n", 300, .14, .35]], boing: [["sine", 220, 520, .35, .5], ["sine", 520, 260, .25, .3, .12]],
+  swish: [["n", 3500, .22, .35, 0, "bandpass"]], whoosh: [["n", 1500, .45, .4, 0, "bandpass"]], boom: [["sine", 90, 30, .6, 1], ["n", 250, .3, .5]],
+  rise: [["sine", 200, 1200, .8, .35], ["n", 2000, .8, .15, 0, "highpass"]], ding: [["sine", 1320, 1320, .5, .5], ["sine", 1980, 1980, .4, .2]],
+  sparkle: [["sine", 2400, 3200, .12, .25], ["sine", 3000, 3800, .12, .25, .08], ["sine", 3600, 4400, .15, .2, .16]],
+  coin: [["square", 988, 988, .07, .25], ["square", 1319, 1319, .25, .25, .07]], cash: [["n", 5000, .05, .4, 0, "highpass"], ["sine", 1800, 1800, .3, .4, .06], ["sine", 2400, 2400, .3, .3, .06]],
+  type: [["n", 3000, .03, .5, 0, "highpass"]], shutter: [["n", 4000, .04, .6, 0, "highpass"], ["n", 2500, .06, .5, .07, "highpass"]],
+  heart: [["sine", 70, 50, .12, 1], ["sine", 65, 45, .14, .8, .2]], tock: [["sine", 600, 400, .05, .7]], rocket: [["n", 900, 1.2, .5], ["sine", 60, 120, 1.2, .4]],
+  notify: [["sine", 880, 880, .12, .4], ["sine", 1175, 1175, .2, .4, .12]], drop: [["sine", 1200, 300, .12, .5]], paper: [["n", 6000, .15, .3, 0, "highpass"]],
+  chalk: [["n", 5000, .2, .2, 0, "highpass"]], beep: [["square", 1000, 1000, .12, .2]], blip: [["square", 600, 1200, .08, .2]], laser: [["sawtooth", 1800, 200, .25, .25]],
+  step: [["sine", 110, 70, .08, .8], ["n", 500, .05, .3]], pageflip: [["n", 5000, .25, .35, 0, "bandpass"]], bubble: [["sine", 300, 900, .1, .45]],
+  snap: [["n", 3500, .02, .8, 0, "highpass"], ["sine", 1500, 1000, .04, .3]], clap: [["n", 1800, .12, .7, 0, "bandpass"], ["n", 1800, .1, .5, .05, "bandpass"]],
+  impact: [["sine", 100, 30, .7, 1], ["n", 200, .35, .6]], kick: [["sine", 160, 40, .2, 1]], riser: [["sine", 150, 900, .9, .35], ["n", 1500, .9, .18, 0, "highpass"]],
+  swipe: [["n", 2500, .18, .35, 0, "bandpass"]], whip: [["n", 4500, .1, .5, 0, "highpass"]],
+  glitch: [["square", 300, 2000, .05, .25], ["square", 1800, 200, .05, .25, .06], ["n", 3000, .08, .3, .1, "highpass"]], stamp: [["sine", 140, 60, .15, 1], ["n", 800, .06, .5]],
+  slide: [["sine", 300, 1500, .3, .35]], scratch: [["sawtooth", 800, 200, .25, .25], ["n", 3000, .2, .25, 0, "bandpass"]], buzzer: [["sawtooth", 120, 120, .4, .35]],
+  correct: [["sine", 880, 880, .1, .4], ["sine", 1320, 1320, .25, .4, .1]], tada: [["triangle", 523, 523, .15, .4], ["triangle", 659, 659, .15, .4, .12], ["triangle", 784, 784, .4, .45, .24]],
+  magic: [["sine", 600, 2400, .5, .3], ["sine", 900, 3000, .5, .2, .1]]
+};
+function synth(c, dest, name, at, gain = 1, pitch = 1) {
+  (SFXD[name] || SFXD.pop).forEach((p) => {
+    if (p[0] === "n") {
+      const [, fc, dur, vol, dl = 0, ft = "lowpass"] = p, len = Math.ceil(c.sampleRate * dur), b = c.createBuffer(1, len, c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+      src.buffer = b; f.type = ft; f.frequency.value = fc * pitch; g.gain.value = vol * gain; src.connect(f); f.connect(g); g.connect(dest); src.start(at + dl);
+    } else {
+      const [type, f0, f1, dur, vol, dl = 0] = p, t0 = at + dl, o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0 * pitch, t0); o.frequency.exponentialRampToValueAtTime(Math.max(20, f1 * pitch), t0 + dur);
+      g.gain.setValueAtTime(Math.max(0.001, vol * gain), t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur); o.connect(g); g.connect(dest); o.start(t0); o.stop(t0 + dur + 0.02);
+    }
+  });
+}
+function collectSfx() {
+  scenes.forEach((sc) => { if (sc.fn instanceof Error) return; const log = []; ctx.save(); try { sc.fn(createS(ctx, 0, sc.dur, log, sc.theme), ctx); } catch (e) {} ctx.restore(); sc.sfx = log; });
+}
+function sfxEvents() {
+  const ev = []; let base = 0;
+  scenes.forEach((sc, k) => { if (k > 0) ev.push({ name: "whoosh", at: base, gain: 0.25, pitch: 1 }); (sc.sfx || []).forEach((e) => ev.push({ name: e.name, at: base + e.at, gain: e.vol ?? 1, pitch: e.pitch || 1 })); base += sc.dur; });
+  const last = {}; ev.sort((a, b) => a.at - b.at).forEach((e) => { const l = last[e.name]; if (l && e.at - l.at < 0.6) { e.n = l.n + 1; e.pitch *= Math.pow(1.06, Math.min(e.n, 8)); } else e.n = 0; last[e.name] = e; });
+  return ev;
+}
+function wordSched(text, dur) {
+  const w = text.trim().split(/\s+/), start = 0.2, end = Math.max(start + 1, dur - 0.6), wt = w.map((x) => x.length + 2), tot = wt.reduce((a, b) => a + b, 0); let acc = 0;
+  return w.map((x, i) => { const t = start + (end - start) * acc / tot; acc += wt[i]; return t; });
+}
+function drawSub(sc, lt) {
+  if (!sc.nar) return;
+  const words = sc.nar.trim().split(/\s+/), tm = wordSched(sc.nar, sc.dur); let cur = 0;
+  tm.forEach((t, i) => { if (lt >= t) cur = i; });
+  const a = Math.floor(cur / 4) * 4, chunk = words.slice(a, a + 4);
+  ctx.save(); ctx.font = `800 44px ${FONT}`; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.lineJoin = "round";
+  const sp = ctx.measureText(" ").width, ws = chunk.map((w) => ctx.measureText(w).width); let x = 360 - (ws.reduce((p, q) => p + q, 0) + sp * (chunk.length - 1)) / 2;
+  chunk.forEach((w, i) => {
+    const hi = sc.emph && w.replace(/[.,!?]/g, "").toLowerCase() === String(sc.emph).toLowerCase();
+    ctx.lineWidth = 9; ctx.strokeStyle = "#0b1020"; ctx.strokeText(w, x, 860); ctx.fillStyle = hi ? "#ffd43b" : "#ffffff"; ctx.fillText(w, x, 860); x += ws[i] + sp;
+  });
+  ctx.restore();
+}
+function stopAudio() { try { AUD.src?.stop(); AUD.msrc?.stop(); } catch (e) {} try { AUD.bus?.disconnect(); } catch (e) {} AUD.src = AUD.msrc = AUD.bus = null; }
+function startAudio() {
+  stopAudio(); const c = getAC(); c.resume();
+  const bus = c.createGain(); bus.connect(c.destination); AUD.bus = bus;
+  if (AUD.buf) { const s0 = c.createBufferSource(); s0.buffer = AUD.buf; s0.connect(bus); const off = (AUD.bounds[(sceneIds[0] || 1) - 1] || 0) + T; if (off < AUD.buf.duration) { s0.start(0, off); AUD.src = s0; } }
+  if (MUS.buf) { const m = c.createBufferSource(), g = c.createGain(); m.buffer = MUS.buf; m.loop = true; g.gain.value = +$("musVol").value; m.connect(g); g.connect(bus); m.start(0, T % MUS.buf.duration); AUD.msrc = m; }
+  if ($("sfxOn").checked) { const sb = c.createGain(); sb.gain.value = +$("sfxVol").value; sb.connect(bus); sfxEvents().forEach((e) => { if (e.at >= T) synth(c, sb, e.name, c.currentTime + (e.at - T), e.gain, e.pitch); }); }
+}
+async function mixdown(totalSec) {
+  const sr = 48000, oc = new OfflineAudioContext(2, Math.round(totalSec * sr), sr), bus = oc.createGain(); bus.connect(oc.destination);
+  if (AUD.buf) { const s0 = oc.createBufferSource(); s0.buffer = AUD.buf; s0.connect(bus); s0.start(0, AUD.bounds[(sceneIds[0] || 1) - 1] || 0); }
+  if (MUS.buf) { const m = oc.createBufferSource(), g = oc.createGain(); m.buffer = MUS.buf; m.loop = true; g.gain.value = +$("musVol").value; m.connect(g); g.connect(bus); m.start(0); }
+  if ($("sfxOn").checked) { const sb = oc.createGain(); sb.gain.value = +$("sfxVol").value; sb.connect(bus); sfxEvents().forEach((e) => synth(oc, sb, e.name, e.at, e.gain, e.pitch)); }
+  return oc.startRendering();
+}
+$("subOn").onchange = () => draw();
+$("musBtn").onclick = () => $("musFile").click();
+$("musFile").onchange = async () => {
+  const f = $("musFile").files[0]; if (!f) return;
+  try { MUS.buf = await getAC().decodeAudioData(await f.arrayBuffer()); $("musName").textContent = f.name.slice(0, 24); } catch (e) { $("musName").textContent = "Gagal membaca audio"; }
 };
 
 /* ===== EXPORT MP4 (WebCodecs) ===== */
@@ -817,11 +901,12 @@ async function exportMp4() {
   if (bad >= 0) { $("err").textContent = "Perbaiki dulu error sintaks di scene " + (bad + 1); return; }
   if (!window.VideoEncoder || !window.Mp4Muxer) { $("err").textContent = "Browser belum mendukung WebCodecs atau muxer gagal dimuat. Pakai Chrome atau Edge terbaru."; return; }
   exporting = true; playing = false; $("play").textContent = "Putar"; $("exp").disabled = true; $("err").textContent = "";
-  const fps = 30, W = 720, H = 1280, frames = Math.round(total * fps);
+  const fps = 30, W = 720, H = 1280, frames = Math.round(total * fps), HAS = !!(AUD.buf || MUS.buf || ($("sfxOn").checked && sfxEvents().length));
+  if (HAS && !window.AudioEncoder) { $("err").textContent = "Browser belum mendukung AudioEncoder. Pakai Chrome atau Edge terbaru."; exporting = false; $("exp").disabled = false; return; }
   try {
     const cfg = { codec: "avc1.640029", width: W, height: H, bitrate: 4e6, framerate: fps };
     if (!(await VideoEncoder.isConfigSupported(cfg)).supported) throw new Error("Codec H.264 tidak didukung di perangkat ini");
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: W, height: H }, audio: AUD.buf ? { codec: "aac", numberOfChannels: 1, sampleRate: AUD.buf.sampleRate } : undefined, fastStart: "in-memory" });
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: W, height: H }, audio: HAS ? { codec: "aac", numberOfChannels: 2, sampleRate: 48000 } : undefined, fastStart: "in-memory" });
     let encErr = null;
     const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { encErr = e; } });
     enc.configure(cfg);
@@ -834,11 +919,14 @@ async function exportMp4() {
       if (i % 4 === 0) { $("prog").value = i / frames; $("pct").textContent = Math.round(100 * i / frames) + "%"; await wait(); }
     }
     await enc.flush();
-    if (AUD.buf && window.AudioEncoder) {
-      const ab = AUD.buf, sr = ab.sampleRate, ch = ab.getChannelData(0), start = Math.round((AUD.bounds[(sceneIds[0] || 1) - 1] || 0) * sr), len = Math.min(ab.length - start, Math.round(total * sr));
+    if (HAS) {
+      const mix = await mixdown(total), sr = mix.sampleRate, L = mix.getChannelData(0), R = mix.getChannelData(1);
       const ae = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => { encErr = e; } });
-      ae.configure({ codec: "mp4a.40.2", sampleRate: sr, numberOfChannels: 1, bitrate: 128000 });
-      for (let o = 0; o < len; o += 4096) { const n = Math.min(4096, len - o), ad = new AudioData({ format: "f32-planar", sampleRate: sr, numberOfFrames: n, numberOfChannels: 1, timestamp: Math.round(o / sr * 1e6), data: ch.slice(start + o, start + o + n) }); ae.encode(ad); ad.close(); if (encErr) throw encErr; }
+      ae.configure({ codec: "mp4a.40.2", sampleRate: sr, numberOfChannels: 2, bitrate: 160000 });
+      for (let o = 0; o < mix.length; o += 4096) {
+        const n = Math.min(4096, mix.length - o), pl = new Float32Array(n * 2); pl.set(L.subarray(o, o + n), 0); pl.set(R.subarray(o, o + n), n);
+        const ad = new AudioData({ format: "f32-planar", sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(o / sr * 1e6), data: pl }); ae.encode(ad); ad.close(); if (encErr) throw encErr;
+      }
       await ae.flush();
     }
     muxer.finalize();

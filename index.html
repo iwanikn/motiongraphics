@@ -63,12 +63,12 @@ label{display:block;font-weight:700;margin:0 0 6px}
       <progress id="prog" value="0" max="1" style="flex:1;accent-color:var(--ac)"></progress>
       <span class="time" id="pct">0%</span>
     </div>
-    <p class="hint">Video 720x1280, 30 fps, tanpa suara. Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
+    <p class="hint">Video 720x1280, 30 fps, dengan suara narasi bila audio sudah ada (efek sfx belum). Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
     <div class="err" id="err" role="alert"></div>
   </div>
   <div>
   <div class="card" style="margin-bottom:16px">
-    <div class="tabs" id="tabs"><button data-s="1" class="on">1. Ide</button><button data-s="2">2. Narasi</button><button data-s="3">3. Animasi</button></div>
+    <div class="tabs" id="tabs"><button data-s="1" class="on">1. Ide</button><button data-s="2">2. Narasi</button><button data-s="4">3. Suara</button><button data-s="3">4. Animasi</button></div>
     <div id="panels"></div>
   </div>
   <div class="card">
@@ -571,6 +571,7 @@ $("code").value = DEFAULT;
 let scenes = [], total = 0, T = 0, playing = false, last = 0, errShown = "";
 
 function parse() {
+  stopAudio();
   const txt = $("code").value;
   const parts = txt.split(/^\/\/ ={3,} SCENE\s*\d+ ={3,}\s*$/m).map((p) => p.trim()).filter(Boolean);
   const old = scenes;
@@ -622,16 +623,80 @@ function draw() {
 function tick(now) {
   if (!playing) return;
   T += (now - last) / 1000; last = now;
-  if (T >= total) { T = total; playing = false; $("play").textContent = "Putar"; }
+  if (T >= total) { T = total; playing = false; $("play").textContent = "Putar"; stopAudio(); }
   draw(); if (playing) requestAnimationFrame(tick);
 }
 $("play").onclick = () => {
   if (!scenes.length) return;
   playing = !playing; $("play").textContent = playing ? "Jeda" : "Putar";
-  if (playing) { if (T >= total) T = 0; last = performance.now(); requestAnimationFrame(tick); }
+  if (playing) { if (T >= total) T = 0; last = performance.now(); requestAnimationFrame(tick); startAudio(); } else stopAudio();
 };
 $("seek").oninput = (e) => { T = +e.target.value; draw(); };
 $("load").onclick = () => { playing = false; $("play").textContent = "Putar"; parse(); };
+/* ===== SUARA ===== */
+const AUD = { buf: null, bounds: [], src: null, up: false };
+let sceneIds = [], AC = null;
+const getAC = () => (AC ||= new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 }));
+const b64f32 = (b64) => { const bin = atob(b64), n = bin.length >> 1, o = new Float32Array(n); for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; o[i] = v / 32768; } return o; };
+const up2 = (a) => { const o = new Float32Array(a.length * 2); for (let i = 0; i < a.length; i++) { o[2 * i] = a[i]; o[2 * i + 1] = (a[i] + (a[i + 1] ?? a[i])) / 2; } return o; };
+async function ttsScene(text) {
+  const key = $("gkey").value.trim(); if (!key) throw new Error("Isi API key Gemini dulu");
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${$("gmodel").value}:generateContent?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: $("gstyle").value.trim() + ":\n" + text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: $("gvoice").value } } } } }) });
+  if (!r.ok) throw new Error("Gemini " + r.status + ": " + (await r.text()).slice(0, 160));
+  const part = (await r.json()).candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
+  if (!part) throw new Error("Respons suara kosong");
+  return up2(b64f32(part.inlineData.data));
+}
+function detectBounds(buf, n) {
+  const d = buf.getChannelData(0), sr = buf.sampleRate, win = Math.floor(sr * 0.02), rms = [];
+  for (let i = 0; i + win <= d.length; i += win) { let a = 0; for (let j = 0; j < win; j++) a += d[i + j] * d[i + j]; rms.push(Math.sqrt(a / win)); }
+  const thr = Math.max(...rms) * 0.06, runs = []; let st = -1;
+  rms.forEach((v, i) => { if (v < thr) { if (st < 0) st = i; } else if (st >= 0) { runs.push([st, i]); st = -1; } });
+  const edge = 15, cand = runs.filter(([a, b]) => a > edge && b < rms.length - edge).sort((x, y) => (y[1] - y[0]) - (x[1] - x[0])).slice(0, n - 1);
+  const cut = cand.map(([a, b]) => ((a + b) / 2) * win / sr).sort((x, y) => x - y);
+  return [0, ...cut, buf.duration];
+}
+function applyAudio() {
+  const b = AUD.bounds; if (!AUD.buf || b.length < 2) return;
+  S.scenes.forEach((sc, i) => { if (b[i + 1] !== undefined) sc.seconds = Math.max(1, +(b[i + 1] - b[i]).toFixed(2)); });
+  scenes.forEach((sc, k) => { const m = S.scenes[(sceneIds[k] || k + 1) - 1]; if (m) sc.dur = m.seconds; });
+  recalc(); buildList(); draw(); renderMarks();
+}
+function renderMarks() {
+  const b = AUD.bounds, el = $("marks");
+  el.innerHTML = b.length < 2 ? "" : `<p class="hint">Awal tiap scene (detik). Total ${AUD.buf.duration.toFixed(2)} dtk. Ubah angkanya untuk menggeser batas.</p>` + S.scenes.map((x, i) => i >= b.length - 1 ? "" : `<div class="row" style="grid-template-columns:auto 84px 1fr"><b>${i + 1}</b><input type="number" step="0.05" min="0" value="${b[i].toFixed(2)}" data-k="${i}" ${i === 0 ? "disabled" : ""} aria-label="Awal scene ${i + 1}"><span class="stat">${esc(x.narration.slice(0, 48))}</span></div>`).join("");
+  el.querySelectorAll("input").forEach((inp) => (inp.onchange = () => { const k = +inp.dataset.k; b[k] = Math.min(Math.max(+inp.value, b[k - 1] + 1), b[k + 1] - 1); applyAudio(); }));
+}
+function stopAudio() { try { AUD.src?.stop(); } catch (e) {} AUD.src = null; }
+function startAudio() {
+  stopAudio(); if (!AUD.buf) return;
+  const c = getAC(); c.resume(); const s0 = c.createBufferSource(); s0.buffer = AUD.buf; s0.connect(c.destination);
+  const off = (AUD.bounds[(sceneIds[0] || 1) - 1] || 0) + T; if (off < AUD.buf.duration) { s0.start(0, off); AUD.src = s0; }
+}
+function setAudio(buf, bounds, up) { AUD.buf = buf; AUD.bounds = bounds; AUD.up = up; $("out4").textContent = "Audio siap: " + buf.duration.toFixed(1) + " dtk. Durasi scene mengikuti audio."; applyAudio(); }
+function wireVoice() {
+$("gen").onclick = async () => {
+  if (!S.scenes.length) return say(4, "Proses narasi di langkah 2 dulu", true);
+  $("gen").disabled = true;
+  try {
+    const parts = []; 
+    for (let i = 0; i < S.scenes.length; i++) { say(4, "Membuat suara scene " + (i + 1) + " dari " + S.scenes.length + "..."); parts.push(await ttsScene(S.scenes[i].narration)); }
+    const sr = 48000, lead = Math.round(sr * 0.15), tail = Math.round(sr * 0.35), total = parts.reduce((a, x) => a + x.length + lead + tail, 0), all = new Float32Array(total), bounds = [0];
+    let pos = 0; parts.forEach((x) => { all.set(x, pos + lead); pos += x.length + lead + tail; bounds.push(pos / sr); });
+    const buf = getAC().createBuffer(1, total, sr); buf.copyToChannel(all, 0);
+    setAudio(buf, bounds, false);
+  } catch (e) { say(4, e.message + (/Failed to fetch|NetworkError/.test(e.message) ? " (jaringan diblokir: pakai Upload audio atau buka dari GitHub Pages)" : ""), true); }
+  $("gen").disabled = false;
+};
+$("upl").onclick = () => $("file").click();
+$("file").onchange = async () => {
+  const f = $("file").files[0]; if (!f) return;
+  if (!S.scenes.length) return say(4, "Proses narasi di langkah 2 dulu", true);
+  try { const buf = await getAC().decodeAudioData(await f.arrayBuffer()); setAudio(buf, detectBounds(buf, S.scenes.length), true); }
+  catch (e) { say(4, "Gagal membaca audio: " + e.message, true); }
+};
+}
+
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
 const S = { ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -672,7 +737,18 @@ $("panels").innerHTML =
   panelHtml(3, `<label for="grp">Kelompok scene (4 scene per prompt)</label><select id="grp" class="fld"><option value="0">Scene 1-4</option></select><label for="ex3">Contoh gaya (opsional)</label><textarea id="ex3" class="fld" style="height:56px" placeholder="Tempel bagian Contoh gaya Cara Kerja dari prompt Animasi Satset"></textarea>`);
 try { $("ex3").value = localStorage.getItem("ex3") || ""; } catch (e) {}
 $("ex3").addEventListener("input", () => { try { localStorage.setItem("ex3", $("ex3").value); } catch (e) {} });
-function showStep(n) { document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.s === n)); [1, 2, 3].forEach((i) => ($("p" + i).hidden = i !== n)); }
+$("panels").insertAdjacentHTML("beforeend", `<div id="p4" hidden>
+<label for="gkey">API key Gemini (milikmu, disimpan di browser)</label><input id="gkey" type="password" class="fld" autocomplete="off" placeholder="AIza...">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label for="gvoice">Suara</label><select id="gvoice" class="fld"><option>Charon</option><option>Kore</option><option>Puck</option><option>Fenrir</option><option>Orus</option><option>Zephyr</option><option>Aoede</option><option>Leda</option></select></div>
+<div><label for="gmodel">Model</label><select id="gmodel" class="fld"><option value="gemini-2.5-flash-preview-tts">Flash TTS</option><option value="gemini-2.5-pro-preview-tts">Pro TTS</option></select></div></div>
+<label for="gstyle">Gaya bicara</label><textarea id="gstyle" class="fld" style="height:70px">Bacakan dalam bahasa Indonesia dengan suara pria yang berat dan dalam, tapi penuh energi seperti coach motivasi yang membakar semangat</textarea>
+<div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="gen">Generate suara</button><button id="upl">Upload audio</button><input id="file" type="file" accept="audio/*" hidden></div>
+<p class="hint">Generate memanggil Gemini langsung dari browser, per scene. Panggilan ke situs lain diblokir saat halaman dibuka dari claude.ai, jadi gunakan versi di GitHub Pages atau upload file audio (WAV/MP3) saja.</p>
+<div id="out4" class="stat" role="status"></div><div id="marks"></div></div>`);
+wireVoice();
+try { $("gkey").value = localStorage.getItem("gkey") || ""; } catch (e) {}
+$("gkey").addEventListener("input", () => { try { localStorage.setItem("gkey", $("gkey").value); } catch (e) {} });
+function showStep(n) { document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.s === n)); [1, 2, 3, 4].forEach((i) => ($("p" + i).hidden = i !== n)); }
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => showStep(+b.dataset.s)));
 const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : ""; $("out" + n).textContent = m; };
 [1, 2, 3].forEach((n) => {
@@ -724,7 +800,7 @@ const DONE = {
     if (!marks.length) throw new Error("Penanda // ===== SCENE n ===== tidak ditemukan. Salin seluruh blok kode jawaban Claude.");
     marks.forEach((x, k) => { S.codes[+x[1]] = code.slice(x.index + x[0].length, k + 1 < marks.length ? marks[k + 1].index : code.length).trim(); });
     const ids = Object.keys(S.codes).map(Number).sort((a, b) => a - b);
-    $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
+    sceneIds = ids; $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
     playing = false; $("play").textContent = "Putar"; parse();
     scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) { sc.dur = m.seconds; sc.theme = m.theme; sc.dark = m.theme === "night"; } });
     recalc(); buildList(); draw();
@@ -745,7 +821,7 @@ async function exportMp4() {
   try {
     const cfg = { codec: "avc1.640029", width: W, height: H, bitrate: 4e6, framerate: fps };
     if (!(await VideoEncoder.isConfigSupported(cfg)).supported) throw new Error("Codec H.264 tidak didukung di perangkat ini");
-    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: W, height: H }, fastStart: "in-memory" });
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: W, height: H }, audio: AUD.buf ? { codec: "aac", numberOfChannels: 1, sampleRate: AUD.buf.sampleRate } : undefined, fastStart: "in-memory" });
     let encErr = null;
     const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { encErr = e; } });
     enc.configure(cfg);
@@ -757,7 +833,15 @@ async function exportMp4() {
       while (enc.encodeQueueSize > 8) await wait();
       if (i % 4 === 0) { $("prog").value = i / frames; $("pct").textContent = Math.round(100 * i / frames) + "%"; await wait(); }
     }
-    await enc.flush(); muxer.finalize();
+    await enc.flush();
+    if (AUD.buf && window.AudioEncoder) {
+      const ab = AUD.buf, sr = ab.sampleRate, ch = ab.getChannelData(0), start = Math.round((AUD.bounds[(sceneIds[0] || 1) - 1] || 0) * sr), len = Math.min(ab.length - start, Math.round(total * sr));
+      const ae = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => { encErr = e; } });
+      ae.configure({ codec: "mp4a.40.2", sampleRate: sr, numberOfChannels: 1, bitrate: 128000 });
+      for (let o = 0; o < len; o += 4096) { const n = Math.min(4096, len - o), ad = new AudioData({ format: "f32-planar", sampleRate: sr, numberOfFrames: n, numberOfChannels: 1, timestamp: Math.round(o / sr * 1e6), data: ch.slice(start + o, start + o + n) }); ae.encode(ad); ad.close(); if (encErr) throw encErr; }
+      await ae.flush();
+    }
+    muxer.finalize();
     const url = URL.createObjectURL(new Blob([muxer.target.buffer], { type: "video/mp4" }));
     const a = document.createElement("a"); a.href = url; a.download = "motion.mp4"; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 60000);

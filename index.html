@@ -36,6 +36,14 @@ label{display:block;font-weight:700;margin:0 0 6px}
 .dot.on{background:var(--ac);color:#fff}
 .stat{font-size:12.5px;color:var(--mu)}
 .err{color:var(--err);font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin-top:8px}
+[hidden]{display:none!important}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1}
+.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.pick{display:block;width:100%;text-align:left;margin-top:6px;font-weight:500}
+.pick.on{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
+.pick b{display:block}
+.fld{width:100%;font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--br);border-radius:8px;padding:7px 8px;margin:0 0 10px}
 </style>
 </head>
 <body>
@@ -58,6 +66,11 @@ label{display:block;font-weight:700;margin:0 0 6px}
     <p class="hint">Video 720x1280, 30 fps, tanpa suara. Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
     <div class="err" id="err" role="alert"></div>
   </div>
+  <div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="tabs" id="tabs"><button data-s="1" class="on">1. Ide</button><button data-s="2">2. Narasi</button><button data-s="3">3. Animasi</button></div>
+    <div id="panels"></div>
+  </div>
   <div class="card">
     <label for="code">Kode scene</label>
     <textarea id="code" spellcheck="false"></textarea>
@@ -65,6 +78,7 @@ label{display:block;font-weight:700;margin:0 0 6px}
     <button class="pri" id="load">Muat scene</button>
     <div id="list" style="margin-top:14px"></div>
     <p class="hint">Lingkaran = latar gelap. Tombol sfx hanya dicatat dulu, suara menyusul di tahap 5.</p>
+  </div>
   </div>
 </div>
 
@@ -248,6 +262,72 @@ $("play").onclick = () => {
 };
 $("seek").oninput = (e) => { T = +e.target.value; draw(); };
 $("load").onclick = () => { playing = false; $("play").textContent = "Putar"; parse(); };
+/* ===== PIPELINE: ide -> narasi -> animasi ===== */
+const S = { ideas: [], idea: null, scenes: [], codes: {} };
+const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function readJson(txt) {
+  const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+  if (a < 0 || b < a) throw new Error("Tidak ada JSON di jawaban. Salin jawaban Claude secara utuh.");
+  try { return JSON.parse(txt.slice(a, b + 1)); } catch (e) { throw new Error("JSON tidak valid: " + e.message); }
+}
+const API = `Objek s dan ctx (kanvas 2D) sudah tersedia, jangan dideklarasikan ulang. Kanvas 720x1280 (9:16), titik 0,0 di kiri atas.
+Waktu: s.t (detik dalam scene), s.dur. s.at(mulai,durasi)->0..1; s.keys([[t,v],...]) interpolasi linear; s.wave(freq,amp,fase); s.spring(t0,"snappy"|"bouncy"|"heavy"|"soft")->0..1; s.stagger(i,mulai,jeda,preset); s.pop(t0,durasi)->0..1 dengan overshoot; s.ease.in/out/inOut(k); s.clamp(x,a,b).
+Gambar: s.shape(titik,{fill,stroke,width,alpha}); s.polyline(titik,{stroke,width,draw:0..1}); s.rect(x,y,w,h,{r,fill,stroke,width,alpha}); s.circle(x,y,r,opts); s.arc(x,y,r,a0,a1,{stroke,width}); s.line(x1,y1,x2,y2,opts); s.text(str,x,y,{size,color,align,alpha}); s.text3d(str,x,y,{size,color,side,depth,align,rotate,draw,alpha}); s.tag(str,x,y,{size,fill,draw}); s.group({x,y,scale,rotate,alpha},()=>{...}).
+Suara: s.sfx(nama,waktu,volume,pitch), nama: tap|swipe|pop|impact|ding|tada|click|snap|thud.`;
+const JSONONLY = "Balas HANYA dengan JSON valid dalam satu blok kode, tanpa penjelasan di luar JSON.";
+const CAT = (i) => S.scenes[i - 1];
+const P = {
+  1: () => { const t = $("topic").value.trim(); if (!t) throw new Error("Isi topik dulu");
+    return `Buat 5 ide video pendek vertikal berbahasa Indonesia tentang: ${t}. Durasi sekitar ${$("vdur").value} detik. Tiap ide punya judul, hook (kalimat pembuka yang menarik) dan ringkasan 2 kalimat.\n${JSONONLY}\nFormat: {"ideas":[{"title":"","hook":"","summary":""}]}`; },
+  2: () => { if (!S.idea) throw new Error("Pilih ide di langkah 1 dulu");
+    const n = Math.max(2, Math.round(+$("vdur").value / 7.5));
+    return `Tulis naskah narasi video berbahasa Indonesia dari ide berikut.\nJudul: ${S.idea.title}\nHook: ${S.idea.hook}\nRingkasan: ${S.idea.summary}\n\nBuat tepat ${n} scene, sekitar 7,5 detik per scene. Narasi singkat, bergaya lisan, scene pertama diawali hook. Field camera berisi deskripsi visual animasi (objek, warna, gerakan, teks di layar). keyword adalah satu kata kunci dari narasi.\n${JSONONLY}\nFormat: {"scenes":[{"narration":"","keyword":"","camera":"","transition":"","seconds":7.5}]}`; },
+  3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
+    const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
+    return `Kamu menulis kode animasi canvas untuk video vertikal. Tiap scene adalah ISI fungsi JavaScript yang dipanggil setiap frame dengan (s, ctx).\n\n${API}\n\nAturan:\n- Kode scene hanya memakai s dan ctx. Semua nilai dihitung dari s.t (tanpa state global, tanpa Math.random, tanpa DOM atau fetch).\n- Deklarasi const milik sendiri di tiap scene (warna dll.), jangan bergantung ke scene lain.\n- Layout vertikal 720x1280. Sisakan area atas (y<190) untuk judul. Teks Indonesia, ukuran terbaca.\n- Tambahkan s.sfx untuk momen penting.\n- Animasi harus selesai kira-kira sebelum s.dur.\n\nContoh satu scene:\n${DEFAULT.replace(/^\/\/ =+ SCENE 1 =+\n/, "")}\n\nScene yang harus dibuat:\n${list.map(([i, sc]) => `Scene ${i} (${sc.seconds} dtk)\nNarasi: ${sc.narration}\nVisual: ${sc.camera}`).join("\n\n")}\n\n${JSONONLY}\nFormat: {"scenes":[{"index":${list[0][0]},"code":"...kode sebagai string JSON..."}]}`; }
+};
+const panelHtml = (n, head) => `<div id="p${n}" ${n > 1 ? "hidden" : ""}>${head}<div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="send${n}">Kirim ke Claude</button><button id="copy${n}">Salin prompt</button></div><textarea id="in${n}" style="height:90px;margin-top:10px" placeholder="Tempel jawaban Claude di sini" aria-label="Jawaban Claude langkah ${n}"></textarea><button class="pri" id="ok${n}" style="margin-top:8px">Proses jawaban</button><div id="out${n}" class="stat" style="margin-top:8px" role="status"></div></div>`;
+$("panels").innerHTML =
+  panelHtml(1, `<label for="topic">Topik video</label><input id="topic" class="fld" placeholder="contoh: disiplin pagi"><label for="vdur">Durasi video</label><select id="vdur" class="fld"><option value="30">30 detik</option><option value="60" selected>1 menit</option></select>`) +
+  panelHtml(2, `<p class="hint" id="idea2" style="margin-top:0">Pilih ide di langkah 1 dulu.</p>`) +
+  panelHtml(3, `<label for="grp">Kelompok scene (4 scene per prompt)</label><select id="grp" class="fld"><option value="0">Scene 1-4</option></select>`);
+function showStep(n) { document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.s === n)); [1, 2, 3].forEach((i) => ($("p" + i).hidden = i !== n)); }
+document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => showStep(+b.dataset.s)));
+const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : ""; $("out" + n).textContent = m; };
+[1, 2, 3].forEach((n) => {
+  const prompt = () => { try { return P[n](); } catch (e) { say(n, e.message, true); return null; } };
+  $("send" + n).onclick = () => { const p = prompt(); if (!p) return; navigator.clipboard?.writeText(p).catch(() => {}); window.open("https://claude.ai/new?q=" + encodeURIComponent(p), "_blank"); say(n, "Claude dibuka. Jika kotak masih kosong, prompt sudah tersalin: tempel dengan Ctrl+V."); };
+  $("copy" + n).onclick = async () => { const p = prompt(); if (!p) return; try { await navigator.clipboard.writeText(p); say(n, "Prompt tersalin."); } catch { say(n, "Gagal menyalin. Izinkan akses clipboard di browser.", true); } };
+  $("ok" + n).onclick = () => { try { DONE[n](readJson($("in" + n).value)); } catch (e) { say(n, e.message, true); } };
+});
+const DONE = {
+  1: (d) => {
+    if (!Array.isArray(d.ideas) || !d.ideas.length) throw new Error("Format salah: butuh array ideas");
+    S.ideas = d.ideas; S.idea = null;
+    say(1, d.ideas.length + " ide masuk. Pilih satu:");
+    $("out1").insertAdjacentHTML("beforeend", d.ideas.map((x, i) => `<button class="pick" data-i="${i}"><b>${esc(x.title)}</b>${esc(x.hook)}</button>`).join(""));
+    $("out1").querySelectorAll(".pick").forEach((b) => (b.onclick = () => { S.idea = S.ideas[+b.dataset.i]; $("out1").querySelectorAll(".pick").forEach((x) => x.classList.toggle("on", x === b)); $("idea2").textContent = "Ide terpilih: " + S.idea.title; showStep(2); }));
+  },
+  2: (d) => {
+    if (!Array.isArray(d.scenes) || !d.scenes.length || d.scenes.some((x) => typeof x.narration !== "string")) throw new Error("Format salah: tiap scene butuh narration");
+    S.scenes = d.scenes.map((x) => ({ ...x, seconds: Math.max(2, +x.seconds || 7.5) })); S.codes = {};
+    $("grp").innerHTML = Array.from({ length: Math.ceil(S.scenes.length / 4) }, (_, g) => `<option value="${g}">Scene ${g * 4 + 1}-${Math.min(S.scenes.length, g * 4 + 4)}</option>`).join("");
+    say(2, S.scenes.length + " scene masuk:");
+    $("out2").insertAdjacentHTML("beforeend", S.scenes.map((x, i) => `<div style="margin-top:4px"><b>${i + 1}.</b> ${esc(x.narration)}</div>`).join(""));
+    showStep(3);
+  },
+  3: (d) => {
+    if (!Array.isArray(d.scenes) || d.scenes.some((x) => !x.index || typeof x.code !== "string")) throw new Error("Format salah: tiap scene butuh index dan code");
+    d.scenes.forEach((x) => { S.codes[x.index] = x.code.replace(/^\s*\/\/ =+ SCENE.*\n/, ""); });
+    const ids = Object.keys(S.codes).map(Number).sort((a, b) => a - b);
+    $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
+    playing = false; $("play").textContent = "Putar"; parse();
+    scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) sc.dur = m.seconds; });
+    recalc(); buildList(); draw();
+    say(3, ids.length + " scene animasi dimuat (" + ids.join(", ") + "). Putar untuk cek, lalu ambil kelompok berikutnya.");
+  }
+};
+
 /* ===== EXPORT MP4 (WebCodecs) ===== */
 let exporting = false;
 const wait = () => new Promise((r) => setTimeout(r, 0));

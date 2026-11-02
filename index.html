@@ -82,6 +82,161 @@ label{display:block;font-weight:700;margin:0 0 6px}
   </div>
 </div>
 
+<script type="text/plain" id="tpl-ide">
+Kamu adalah penulis konten video pendek motivasi berbahasa Indonesia (TikTok, Reels, Shorts, Threads) yang terkenal karena idenya selalu segar dan tidak pasaran.
+Gaya video: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan. Durasi 30-45 detik.
+Gaya animasi "Cara Kerja": Video penjelas CARA KERJA dalam SATU SHOT 3D TANPA TRANSISI: seluruh video membahas SATU benda yang cocok dengan topiknya (laptop, ponsel, kulkas, celengan, mesin kopi, jam, sepeda, pompa, otak/jantung sebagai model) yang dibuka dan dibongkar pelan-pelan. Engine tidak memberi transisi dan tidak menggerakkan kamera, jadi KAMU kameranya. WAJIB 3D SUNGGUHAN, bukan gambar datar: salin helper 3D dari contoh gaya ini (`view`, `P`, `box`, `quad`, `ring`, `shade`, `mixHex`), lalu rakit benda dari banyak `box` (alas, dinding, tutup, komponen) dengan koordinat dunia x kanan, y belakang, z atas; tiap box otomatis menampilkan sisi atas/depan/samping yang menghadap kamera dengan terang-gelap dari arah cahaya. Bagian yang bergerak diputar di 3D lewat opsi `T` (mis. tutup berputar di engsel, pintu membuka, roda berputar), detail permukaan (layar, tombol, label, bilah kipas) pakai `quad`/`ring` di bidang 3D. Gambar dari belakang ke depan dan dari bawah ke atas. Warna box selalu hex (#rrggbb), jangan rgb(). CARA MENULIS: (a) tulis fungsi `world(st, yaw)` yang menggambar benda LENGKAP; SALIN persis di semua scene supaya bentuk, ukuran, dan warnanya tidak berubah; `st` berisi keadaan yang berubah (tutup 0..1, layar menyala, casing terangkat 0..1, suhu, putaran). (b) kamera `{ x, y, z, yaw }` dibuat dengan `aim([x, y, z], zoom, yaw)` (titik 3D di tengah layar), definisikan kamera bernama di atas (`CAM_WHOLE`, `CAM_BASE`, ...) dan gambar lewat `shoot(cam, st)` TANPA clip: benda boleh mengisi layar sampai ke atas dan berada di belakang judul. (c) KESINAMBUNGAN: kamera scene ini DIMULAI persis dari kamera akhir scene sebelumnya lalu bergerak halus dengan `move(a, b, t0, t1)` ke bagian yang sedang dibahas dan BERHENTI TEPAT di kamera akhirnya: lihat utuh sambil berputar pelan (yaw berubah 0.3-0.5), mendekat ke komponen (zoom 1.8-2.5), geser ke komponen lain. Tulis kamera awal dan akhir di komentar baris pertama (`// kamera: CAM_WHOLE -> CAM_BASE`). (d) BONGKAR: casing/penutup terangkat lurus ke atas dan memudar sehingga komponen di dalamnya terlihat, lalu komponen itu bekerja (memanas jadi oranye, kipas berputar, cairan mengalir, roda gigi berputar). TATA LETAK LAYAR (tidak ikut zoom, DIGAMBAR TERAKHIR di atas benda): (1) JUDUL BESAR DUA BARIS di kiri atas: label langkah mono kecil tinta "02 / 05" dengan garis pendek di y 140 (x 60); baris pertama `s.text3d` size 62-66 depth 0 `align: "left"` tinta #1c2433 di y 212 dengan pendar terang di sekitarnya (`ctx.shadowColor = "rgba(238,242,247,0.95)"`, `ctx.shadowBlur = 22`, gambar dua kali); baris kedua size 56-60 huruf PUTIH di atas PLAT STABILO biru kobalt #3b5bdb (rect r 14 bergaris tepi putih tebal 4, x 48, y 246, tinggi 74, lebar mengikuti teks dan memanjang masuk) di y 285. Judul berganti per bagian dan boleh menimpa benda. (2) METERAN BULAT di kanan atas (pusat 584, 200, r 72): lingkaran putih di belakangnya, busur 270° abu #dbe2eb yang TERISI warna keadaan sesuai angka, angka `s.text3d` size 42 di tengah yang MENGHITUNG mengikuti gerakan, satuan kecil abu di bawahnya ("°C prosesor", "sudut layar", "% terbuka"), dan kapsul putih kecil di bawah meteran berisi titik warna + kata keadaan kapital: abu #6b7685 "MATI"/"TERTUTUP", biru #3b5bdb "BEKERJA"/"TERBUKA", hijau #12b886 "MENYALA"/"DINGIN", oranye #ff7a45 "PANAS", merah #e03131 "BAHAYA". DETAIL: label komponen `s.tag("← KIPAS", x, y, { size: 19, fill: "#1c2433" })` yang menempel di komponennya (posisi layar dari `toScreen(cam, [x, y, z])`); kata efek stiker miring `s.text3d("WUUSH!", x, y, { size: 60, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(t0, 0.4) })` hanya di momen puncak; boleh kartu perbesaran (kotak putih r 12 dengan judul mono kecil "DIPERBESAR") untuk detail kecil. Palet dingin dan bersih: aluminium #c3ccd8 / #aeb8c6, permukaan terang #d5dce6, gelap #2a3140 / #1c2433, papan sirkuit biru #22577a, aksen biru kobalt #3b5bdb dan biru langit #4dabf7, hijau #12b886 untuk yang aktif/aman, oranye #ff7a45 untuk panas, tembaga #d08850 untuk pipa/kabel. Outline tinta tipis #1c2433. Gerakan mekanis sebab-akibat yang tenang dan presisi; tanpa burst energi, tanpa coretan, tanpa tokoh kartun, tanpa wajah. Pakai tema "paper" untuk semua scene agar latarnya menyambung. Jangan taruh apa pun di y 880-1130 (tempat subtitle).
+
+Saat diminta ide:
+- Setiap ide punya pesan yang jelas. Harus bisa divisualkan dengan metafora benda nyata yang mudah dikenali.
+- "visualStyle" ditulis lengkap dengan formula: [gaya] + [pencahayaan/suasana] + [palet warna] + [komposisi/kamera] + [metafora utama]. Contoh: "isometrik pastel, cahaya pagi lembut, mint dan peach, sudut atas 45 derajat, rak buku yang tersusun".
+- Hook harus menohok dan bikin berhenti scroll dalam 1 detik pertama, bukan klise kosong.
+- HINDARI metafora dan kalimat pasaran: tangga kesuksesan, tetesan air melubangi batu, kepompong jadi kupu-kupu, pohon dari biji kecil, gunung es, "proses tidak mengkhianati hasil", "1% setiap hari". Kalau memakai benda umum, beri sudut yang tak terduga.
+- Setiap ide harus berbeda jelas satu sama lain: beda pesan, beda metafora, beda jenis hook.
+- Bahasa Indonesia yang natural untuk anak muda, tidak alay. Judul, hook, dan pesan inti ditulis dengan kata-kata sederhana.
+Bahasa SEDERHANA, harus langsung dipahami sekali dengar oleh siapa saja (anak SMP sampai orang tua):
+- Pakai kata sehari-hari yang biasa diucapkan di obrolan. JANGAN pakai kata tinggi/serapan/akademis: esensi, eksistensi, paradigma, manifestasi, resiliensi, validasi, ekspektasi, transformasi, signifikan, fundamental, kontemplasi, hakikat, entitas, persepsi, narasi, fase, momentum, versi terbaik, potensi, makna hidup. Ganti dengan kata biasa (mis. "ekspektasi" -> "harapan", "konsisten" -> "terus-terusan", "validasi" -> "pengakuan orang").
+- JANGAN puitis, filosofis, atau berbunga-bunga ("jiwa yang lelah", "langkah kecil menuju cahaya", "dirimu yang sejati"). Katakan maksudnya langsung.
+- Satu kalimat satu maksud, pendek, susunan biasa (subjek-kata kerja-objek). Hindari kalimat bertingkat dan kiasan di dalam kiasan.
+- Metafora boleh, tapi bendanya sehari-hari dan artinya langsung dijelaskan dengan kata biasa; penonton tidak boleh harus mikir untuk paham.
+
+## Tugas
+Buat 5 ide video pendek motivasi.
+Topik / kata kunci: {{TOPIC}}. Dekati topik ini dari sudut yang berbeda di setiap ide.
+
+Durasi video: {{DURLABEL}}. Tiap ide harus punya bahan yang pas untuk durasi itu: video panjang butuh beberapa poin, contoh, atau alur cerita; video pendek cukup satu gagasan yang tajam.
+
+Bahan wajib per ide (ide ke-n memakai baris ke-n; boleh ditafsirkan kreatif, tapi jangan diganti):
+1. lensa metafora "domino" · hook berupa kontradiksi tegas ("Berhenti X. Mulai Y.") · nada tenang seperti ngobrol malam
+2. lensa metafora "es batu & suhu" · hook berupa kalimat yang dibalik di akhir (plot twist) · nada blak-blakan tanpa basa-basi
+3. lensa metafora "jam pasir & waktu" · hook berupa pertanyaan menohok yang bikin penonton merasa tersindir · nada jenaka tapi ngena
+4. lensa metafora "pasar & tawar-menawar" · hook berupa skenario "bayangkan kalau..." · nada blak-blakan tanpa basa-basi
+5. lensa metafora "kode & bug" · hook berupa perintah singkat 1-3 kata · nada tegas seperti pelatih
+
+## Format jawaban
+Jawab HANYA dengan satu blok kode ```json berisi:
+{
+  "ideas": [
+    {
+      "title": "judul singkat",
+      "hook": "kalimat pembuka yang bikin berhenti scroll",
+      "angle": "pesan inti 1-2 kalimat",
+      "visualStyle": "gaya + pencahayaan + palet + komposisi + metafora utama"
+    }
+  ]
+}
+Jangan gunakan artifact/canvas dan jangan menambahkan penjelasan di luar format yang diminta.
+</script>
+<script type="text/plain" id="tpl-narasi">
+Kamu adalah penulis naskah video pendek motivasi berbahasa Indonesia. Gaya visual: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan.
+Gaya animasi "Cara Kerja": Video penjelas CARA KERJA dalam SATU SHOT 3D TANPA TRANSISI: seluruh video membahas SATU benda yang cocok dengan topiknya (laptop, ponsel, kulkas, celengan, mesin kopi, jam, sepeda, pompa, otak/jantung sebagai model) yang dibuka dan dibongkar pelan-pelan. Engine tidak memberi transisi dan tidak menggerakkan kamera, jadi KAMU kameranya. WAJIB 3D SUNGGUHAN, bukan gambar datar: salin helper 3D dari contoh gaya ini (`view`, `P`, `box`, `quad`, `ring`, `shade`, `mixHex`), lalu rakit benda dari banyak `box` (alas, dinding, tutup, komponen) dengan koordinat dunia x kanan, y belakang, z atas; tiap box otomatis menampilkan sisi atas/depan/samping yang menghadap kamera dengan terang-gelap dari arah cahaya. Bagian yang bergerak diputar di 3D lewat opsi `T` (mis. tutup berputar di engsel, pintu membuka, roda berputar), detail permukaan (layar, tombol, label, bilah kipas) pakai `quad`/`ring` di bidang 3D. Gambar dari belakang ke depan dan dari bawah ke atas. Warna box selalu hex (#rrggbb), jangan rgb(). CARA MENULIS: (a) tulis fungsi `world(st, yaw)` yang menggambar benda LENGKAP; SALIN persis di semua scene supaya bentuk, ukuran, dan warnanya tidak berubah; `st` berisi keadaan yang berubah (tutup 0..1, layar menyala, casing terangkat 0..1, suhu, putaran). (b) kamera `{ x, y, z, yaw }` dibuat dengan `aim([x, y, z], zoom, yaw)` (titik 3D di tengah layar), definisikan kamera bernama di atas (`CAM_WHOLE`, `CAM_BASE`, ...) dan gambar lewat `shoot(cam, st)` TANPA clip: benda boleh mengisi layar sampai ke atas dan berada di belakang judul. (c) KESINAMBUNGAN: kamera scene ini DIMULAI persis dari kamera akhir scene sebelumnya lalu bergerak halus dengan `move(a, b, t0, t1)` ke bagian yang sedang dibahas dan BERHENTI TEPAT di kamera akhirnya: lihat utuh sambil berputar pelan (yaw berubah 0.3-0.5), mendekat ke komponen (zoom 1.8-2.5), geser ke komponen lain. Tulis kamera awal dan akhir di komentar baris pertama (`// kamera: CAM_WHOLE -> CAM_BASE`). (d) BONGKAR: casing/penutup terangkat lurus ke atas dan memudar sehingga komponen di dalamnya terlihat, lalu komponen itu bekerja (memanas jadi oranye, kipas berputar, cairan mengalir, roda gigi berputar). TATA LETAK LAYAR (tidak ikut zoom, DIGAMBAR TERAKHIR di atas benda): (1) JUDUL BESAR DUA BARIS di kiri atas: label langkah mono kecil tinta "02 / 05" dengan garis pendek di y 140 (x 60); baris pertama `s.text3d` size 62-66 depth 0 `align: "left"` tinta #1c2433 di y 212 dengan pendar terang di sekitarnya (`ctx.shadowColor = "rgba(238,242,247,0.95)"`, `ctx.shadowBlur = 22`, gambar dua kali); baris kedua size 56-60 huruf PUTIH di atas PLAT STABILO biru kobalt #3b5bdb (rect r 14 bergaris tepi putih tebal 4, x 48, y 246, tinggi 74, lebar mengikuti teks dan memanjang masuk) di y 285. Judul berganti per bagian dan boleh menimpa benda. (2) METERAN BULAT di kanan atas (pusat 584, 200, r 72): lingkaran putih di belakangnya, busur 270° abu #dbe2eb yang TERISI warna keadaan sesuai angka, angka `s.text3d` size 42 di tengah yang MENGHITUNG mengikuti gerakan, satuan kecil abu di bawahnya ("°C prosesor", "sudut layar", "% terbuka"), dan kapsul putih kecil di bawah meteran berisi titik warna + kata keadaan kapital: abu #6b7685 "MATI"/"TERTUTUP", biru #3b5bdb "BEKERJA"/"TERBUKA", hijau #12b886 "MENYALA"/"DINGIN", oranye #ff7a45 "PANAS", merah #e03131 "BAHAYA". DETAIL: label komponen `s.tag("← KIPAS", x, y, { size: 19, fill: "#1c2433" })` yang menempel di komponennya (posisi layar dari `toScreen(cam, [x, y, z])`); kata efek stiker miring `s.text3d("WUUSH!", x, y, { size: 60, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(t0, 0.4) })` hanya di momen puncak; boleh kartu perbesaran (kotak putih r 12 dengan judul mono kecil "DIPERBESAR") untuk detail kecil. Palet dingin dan bersih: aluminium #c3ccd8 / #aeb8c6, permukaan terang #d5dce6, gelap #2a3140 / #1c2433, papan sirkuit biru #22577a, aksen biru kobalt #3b5bdb dan biru langit #4dabf7, hijau #12b886 untuk yang aktif/aman, oranye #ff7a45 untuk panas, tembaga #d08850 untuk pipa/kabel. Outline tinta tipis #1c2433. Gerakan mekanis sebab-akibat yang tenang dan presisi; tanpa burst energi, tanpa coretan, tanpa tokoh kartun, tanpa wajah. Pakai tema "paper" untuk semua scene agar latarnya menyambung. Jangan taruh apa pun di y 880-1130 (tempat subtitle).
+Kalau ada arahan gaya dari kreator, tulis setiap "visual" dan pilih "theme" mengikuti arahan itu.
+
+Ubah ide yang dipilih menjadi narasi scene per scene.
+
+## Cara menulis narasi (paling penting)
+Tulis seperti orang yang NGOMONG LANGSUNG ke temannya, bukan seperti poster kata-kata mutiara. Bayangkan seluruh narasi dibaca sekali jalan tanpa melihat layar: harus terdengar seperti satu cerita utuh yang mengalir, jelas maksudnya, dan enak didengar.
+- Tulis dulu narasinya sebagai satu monolog utuh di kepala, baru dipotong per scene di jeda napas yang wajar. Scene boleh berisi potongan kalimat yang dilanjutkan scene berikutnya.
+- Panjang teks per scene: 4-12 kata. Ritmenya cepat, tapi tetap kalimat yang lengkap dan jelas. Kata tunggal ("Sekarang.") hanya sesekali untuk penekanan, maksimal 1-2 kali per video.
+- Bahasa lisan anak muda yang natural: boleh "kamu", "gak", "udah", "aja", "kok", "sih", "tuh", "kan", "ya", "jujur", "padahal". Pakai kata sambung (karena, tapi, padahal, terus, makanya, jadi) supaya antar-scene nyambung.
+- Bahasa SEDERHANA, langsung dipahami sekali dengar oleh siapa saja (anak SMP sampai orang tua). Tes: kalau ada kata yang jarang dipakai di obrolan warung kopi, ganti.
+- Pakai kata sehari-hari yang biasa diucapkan di obrolan. JANGAN pakai kata tinggi/serapan/akademis: esensi, eksistensi, paradigma, manifestasi, resiliensi, validasi, ekspektasi, transformasi, signifikan, fundamental, kontemplasi, hakikat, entitas, persepsi, narasi, fase, momentum, versi terbaik, potensi, makna hidup. Ganti dengan kata biasa (mis. "ekspektasi" -> "harapan", "konsisten" -> "terus-terusan", "validasi" -> "pengakuan orang").
+- JANGAN puitis, filosofis, atau berbunga-bunga ("jiwa yang lelah", "langkah kecil menuju cahaya", "dirimu yang sejati"). Katakan maksudnya langsung.
+- Satu kalimat satu maksud, pendek, susunan biasa (subjek-kata kerja-objek). Hindari kalimat bertingkat dan kiasan di dalam kiasan.
+- Metafora boleh, tapi bendanya sehari-hari dan artinya langsung dijelaskan dengan kata biasa; penonton tidak boleh harus mikir untuk paham.
+- Konkret, bukan abstrak. Ganti kata besar ("kesuksesan", "potensi", "versi terbaik dirimu", "zona nyaman") dengan situasi nyata yang bisa dibayangkan: jam berapa, lagi ngapain, pegang apa, ngerasa apa.
+- Jaga satu benang merah: metafora dari ide dipakai dari awal sampai akhir dan dijelaskan dengan jelas, bukan disebut sekilas lalu ditinggal.
+- JANGAN: deretan slogan pendek tanpa hubungan, kalimat perintah beruntun ("Bangkit! Lawan! Gas!"), kalimat ala terjemahan, kata baku kaku ("adalah", "merupakan", "oleh karena itu", "sesungguhnya", "dirimu"), atau quote klise.
+- Alur: hook yang langsung kena -> situasi nyata yang relatable -> sudut pandang baru (lewat metafora) -> satu langkah konkret yang bisa dilakukan hari ini -> penutup yang membekas dan bikin orang pengen langsung gerak.
+
+Contoh beda kaku vs natural (jangan dipakai mentah-mentah, hanya untuk rasa bahasa):
+- Kaku: "Berhenti menunda." / "Waktu terus berjalan." / "Mulai sekarang." / "Raih mimpimu."
+- Terlalu tinggi: "Esensi perjalanan ini bukan tentang destinasi, melainkan transformasi dirimu." -> Sederhana: "Yang penting bukan cepat sampai. Tapi kamu jadi lebih kuat di jalan."
+- Natural: "Kamu bilang besok aja," / "padahal kemarin juga bilang gitu." / "Masalahnya bukan kamu malas," / "tapi langkah pertamanya kegedean." / "Jadi kecilin aja:" / "buka laptopnya dulu. Itu doang."
+- "visual": deskripsi ilustrasi KONKRET + gerakannya, untuk kanvas vertikal 9:16. Gerakan dinamis: jatuh lalu membal, terbang masuk dari samping, berputar, menumpuk, pecah jadi burst. Teks 3D besar boleh untuk angka/kata singkat. Sebut benda NYATA yang dimaksud teks secara spesifik (motor, HP, celengan, laptop, kunci) lengkap dengan ciri khas bentuknya (mis. "motor skuter oranye: dua roda, jok cokelat, stang, lampu depan bulat"), karena objek akan dirakit dari banyak bentuk dasar dan harus langsung dikenali. JANGAN menggantinya dengan bentuk abstrak atau cuma sebagiannya (motor jangan jadi roda saja). Hindari manusia detail; pakai benda dan metafora. TANPA WAJAH: jangan menggambar mata, hidung, atau mulut pada benda apa pun. Satu objek utama + maksimal 2-3 objek pendukung.
+- "theme": "paper" = latar biru-abu terang, "dusk" = latar biru-abu terang, "night" = latar biru malam. Selingi agar tidak monoton.
+- "duration": 1.5 - 4.5 detik (kira-kira 1 detik + 0.28 detik per kata).
+- "emphasis": SATU kata terpenting dari "text" (tulis persis seperti di teks) untuk di-highlight. Kamera akan menghentak/zoom tepat saat kata ini muncul.
+- "camera": gerakan kamera scene ini, pilih id yang paling cocok dengan isi dan emosinya:
+  - "push": mendekat pelan ke objek; membangun fokus/ketegangan
+  - "pull": mundur dari dekat; reveal, lega, gambaran besar
+  - "pan-left": kamera menyapu ke kiri; perjalanan, waktu berjalan
+  - "pan-right": kamera menyapu ke kanan; maju, progres
+  - "tilt-up": kamera naik; harapan, bangkit, target
+  - "tilt-down": kamera turun; jatuh, beban, kenyataan
+  - "roll": frame berputar miring; bingung, dunia terbalik, overthinking
+  - "orbit": kamera mengayun kiri-kanan; ragu, menimbang pilihan
+  - "crash": zoom kilat + hentakan; kejutan, tamparan kenyataan
+  - "handheld": goyang tangan alami; jujur, curhat, dekat
+  - "shake": frame bergetar keras; benturan, gagal, ledakan, marah, panik
+  Buat kameranya dinamis: scene berurutan JANGAN memakai gerakan yang sama, pakai banyak variasi sepanjang video. Pakai "shake" atau "crash" untuk momen benturan/kaget/gagal/ledakan, tapi jangan lebih dari sekitar 1 dari 4 scene supaya tetap terasa menghentak.
+
+## Ide terpilih
+- Judul: {{TITLE}}
+- Hook: {{HOOK}}
+- Pesan: {{PESAN}}
+- Gaya visual: {{VISUAL}}
+
+## Tugas
+Tulis narasi sebanyak {{N}} scene.
+## Panjang video (aturan ini MENANG atas aturan panjang teks per scene di atas)
+Target durasi {{DURLABEL}}: ±{{WORDS}} kata narasi total dalam {{N}} scene, rata-rata ±{{AVG}} detik per scene.
+- Tiap scene berisi 1-3 kalimat utuh (sekitar {{PERSCENE}} kata), bukan potongan frasa pendek.
+- Susun seperti video cerita/esai: hook kuat di scene pertama, lalu beberapa bagian yang mengalir (misalnya masalah -> kisah atau contoh nyata -> titik balik -> pelajaran -> ajakan penutup), dengan kalimat penghubung antar-bagian. Jangan mengulang kalimat atau ide yang sama.
+- "visual" tiap scene tetap satu adegan yang jelas, tapi berkembang dalam beberapa tahap sepanjang scene (objek muncul, detail menyusul, ada perubahan/puncak), sesuai kalimat yang sedang diucapkan.
+- Total kata harus mendekati target: terlalu sedikit membuat video jauh lebih pendek, terlalu banyak membuatnya kepanjangan.
+- Isi "duration" tiap scene sekitar {{AVG}} (sesuaikan dengan panjang teks scene itu).
+- Aturan bahasa di atas tetap berlaku (natural, sederhana, enak didengar); hanya panjangnya yang berbeda.
+
+## Latar
+Desain latar khusus untuk video ini (unik, jangan pakai warna generik): 3 versi yang dipakai sebagai tema scene.
+- "paper" = versi terang (teks gelap harus terbaca), "dusk" = versi menengah/berwarna, "night" = versi gelap (teks terang harus terbaca).
+- Warna "top" dan "bottom" (hex) membentuk gradasi; selaraskan dengan gaya "Cara Kerja" dan suasana pesan video.
+- Acuan gaya ini (variasikan, jangan sama persis): paper: #eef2f7 -> #e3e9f1, motif none; dusk: #eef2f7 -> #e3e9f1, motif none; night: #151b26 -> #0e131c, motif none.
+- "pattern" salah satu: none, dots, grid, bigGrid, lines, stars, halftone, grain, chalk, wash, horizon, sunburst, mist, hud, stripes, dotsup, neonwave, slash, hills, peaks, house, dither, washi, plate, sunset, film, room, deepgrid, shore, craft, softgrid, ridge.
+
+## SEO YouTube ("seo")
+Metadata upload (YouTube, TikTok, Reels) supaya video ini mudah ditemukan lewat pencarian dan saran video, dan enak dibaca. Tulis dalam bahasa video ini, untuk penonton yang mengetik di kolom cari.
+- Tentukan dulu 1 KATA KUNCI UTAMA (frasa 2-4 kata yang benar-benar diketik orang saat mencari topik ini, mis. "cara berhenti overthinking", "bikin video animasi", "tips hemat uang", bukan istilah puitis) dan 2-3 KATA KUNCI TURUNAN (variasi atau masalah yang dekat).
+- "title": maksimal 70 karakter, kata kunci utama di awal, lalu alasan untuk mengklik (manfaat, angka, atau rasa penasaran) yang jujur sesuai isi video. Tanpa huruf kapital semua, tanpa hashtag, maksimal 1 emoji.
+- "description": deskripsi panjang (YouTube) yang RAPI, BUKAN satu paragraf panjang. Pisahkan bagian dengan baris kosong (tulis "\n\n" di dalam string JSON) dan tiap poin dengan "\n". Susunannya:
+  1) Pembuka 1-2 kalimat pendek: kata kunci utama di kalimat pertama + apa yang didapat penonton (dua baris ini yang tampil di hasil pencarian, jadi harus langsung menarik).
+  2) Satu baris judul bagian (mis. "Di video ini:" atau "Yang kamu dapat:"), lalu 3-4 poin, satu poin per baris, diawali emoji yang cocok dengan isinya (mis. "✅ ", "💡 ", "🎬 "). Poin diambil dari isi video, singkat (maksimal ~12 kata), dan memuat kata kunci turunan secara alami.
+  3) Satu kalimat penutup yang menguatkan manfaatnya, lalu baris ajakan yang spesifik (mis. "Simpan video ini biar gak lupa, dan kirim ke teman yang lagi butuh."). Video promosi: ajakan + kontak/link persis seperti dari kreator.
+  Total maksimal ~700 karakter, kalimat pendek, bahasa santai sesuai video. Jangan menyalin narasi kata per kata, jangan menumpuk kata kunci, jangan menulis hashtag di deskripsi (ditambahkan otomatis di bawahnya).
+- "short": caption pendek untuk TikTok/Reels/Shorts: 1-2 kalimat (maksimal ~150 karakter) yang bikin penasaran atau langsung kena, bahasa santai sesuai isi video, boleh 1 emoji. Tanpa hashtag (ditambahkan otomatis), jangan sama persis dengan judul.
+- "tags": 10-15 kata kunci, campuran: kata kunci utama, variasi dan sinonimnya, frasa panjang yang spesifik (long-tail), dan 2-3 topik umum. Huruf kecil, tanpa "#", total di bawah 400 karakter.
+- "hashtags": 4-6 hashtag yang BENAR-BENAR dipakai orang di TikTok/Instagram/YouTube untuk topik ini, diurutkan dari paling spesifik ke umum: 2-3 hashtag spesifik isi video (dari kata kunci utama/turunan, mis. "#berhentimenunda", "#videoanimasi"), 1-2 hashtag niche/komunitas yang relevan (mis. "#kontenkreator", "#motivasiindonesia", "#tipsproduktif"), dan paling banyak 1 yang umum tapi tetap nyambung dengan topiknya. Huruf kecil, tanpa spasi, bahasa sesuai video. DILARANG hashtag generik yang tidak berhubungan dengan isi (#viral, #fyp, #foryou, #foryoupage, #trending, #explore), hashtag yang hampir sama satu sama lain, dan "#shorts" atau "#satsetmotion" (keduanya ditambahkan otomatis).
+
+## Format jawaban
+Jawab HANYA dengan satu blok kode ```json berisi:
+{
+  "title": "judul video",
+  "seo": {
+    "title": "judul YouTube yang dicari orang",
+    "description": "deskripsi YouTube",
+    "short": "caption pendek TikTok/Reels",
+    "tags": ["kata kunci", "..."],
+    "hashtags": ["#katakunci", "..."]
+  },
+  "background": {
+    "paper": { "top": "#hex", "bottom": "#hex", "pattern": "dots" },
+    "dusk": { "top": "#hex", "bottom": "#hex", "pattern": "grid" },
+    "night": { "top": "#hex", "bottom": "#hex", "pattern": "stars" }
+  },
+  "scenes": [
+    {
+      "text": "teks narasi di layar",
+      "visual": "deskripsi ilustrasi dan gerakannya",
+      "theme": "paper" | "night" | "dusk",
+      "duration": 2.2,
+      "emphasis": "kata",
+      "camera": "push"
+    }
+  ]
+}
+Jangan gunakan artifact/canvas dan jangan menambahkan penjelasan di luar format yang diminta.
+</script>
 <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
 <script>
 /* ===== ENGINE s ===== */
@@ -238,7 +393,9 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
   if (!scenes.length) { ctx.clearRect(0, 0, 720, 1280); return; }
   const [i, lt] = locate(T), sc = scenes[i];
-  ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7"; ctx.fillRect(0, 0, 720, 1280);
+  const bg = S.meta?.background?.[sc.theme];
+  if (bg?.top && bg?.bottom) { const g = ctx.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, bg.top); g.addColorStop(1, bg.bottom); ctx.fillStyle = g; } else ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7";
+  ctx.fillRect(0, 0, 720, 1280);
   let msg = "";
   if (sc.fn instanceof Error) msg = "Scene " + (i + 1) + ": " + sc.fn.message;
   else {
@@ -263,7 +420,7 @@ $("play").onclick = () => {
 $("seek").oninput = (e) => { T = +e.target.value; draw(); };
 $("load").onclick = () => { playing = false; $("play").textContent = "Putar"; parse(); };
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
-const S = { ideas: [], idea: null, scenes: [], codes: {} };
+const S = { ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function readJson(txt) {
   const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
@@ -278,17 +435,19 @@ const JSONONLY = "Balas HANYA dengan JSON valid dalam satu blok kode, tanpa penj
 const CAT = (i) => S.scenes[i - 1];
 const P = {
   1: () => { const t = $("topic").value.trim(); if (!t) throw new Error("Isi topik dulu");
-    return `Buat 5 ide video pendek vertikal berbahasa Indonesia tentang: ${t}. Durasi sekitar ${$("vdur").value} detik. Tiap ide punya judul, hook (kalimat pembuka yang menarik) dan ringkasan 2 kalimat.\n${JSONONLY}\nFormat: {"ideas":[{"title":"","hook":"","summary":""}]}`; },
+    const dur = +$("vdur").value, v = { TOPIC: t, DURLABEL: dur >= 60 ? "1 mnt" : dur + " dtk" };
+    return $("tpl-ide").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   2: () => { if (!S.idea) throw new Error("Pilih ide di langkah 1 dulu");
-    const n = Math.max(2, Math.round(+$("vdur").value / 7.5));
-    return `Tulis naskah narasi video berbahasa Indonesia dari ide berikut.\nJudul: ${S.idea.title}\nHook: ${S.idea.hook}\nRingkasan: ${S.idea.summary}\n\nBuat tepat ${n} scene, sekitar 7,5 detik per scene. Narasi singkat, bergaya lisan, scene pertama diawali hook. Field camera berisi deskripsi visual animasi (objek, warna, gerakan, teks di layar). keyword adalah satu kata kunci dari narasi.\n${JSONONLY}\nFormat: {"scenes":[{"narration":"","keyword":"","camera":"","transition":"","seconds":7.5}]}`; },
+    const dur = +$("vdur").value, n = Math.max(2, Math.round(dur / 7.5)), words = Math.round(dur * 2.35);
+    const v = { TITLE: S.idea.title, HOOK: S.idea.hook, PESAN: S.idea.message ?? S.idea.summary ?? "", VISUAL: S.idea.visual ?? "", N: n, DURLABEL: dur >= 60 ? "1 mnt" : dur + " dtk", WORDS: words, PERSCENE: Math.round(words / n), AVG: +(dur / n).toFixed(1) };
+    return $("tpl-narasi").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
     const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
     return `Kamu menulis kode animasi canvas untuk video vertikal. Tiap scene adalah ISI fungsi JavaScript yang dipanggil setiap frame dengan (s, ctx).\n\n${API}\n\nAturan:\n- Kode scene hanya memakai s dan ctx. Semua nilai dihitung dari s.t (tanpa state global, tanpa Math.random, tanpa DOM atau fetch).\n- Deklarasi const milik sendiri di tiap scene (warna dll.), jangan bergantung ke scene lain.\n- Layout vertikal 720x1280. Sisakan area atas (y<190) untuk judul. Teks Indonesia, ukuran terbaca.\n- Tambahkan s.sfx untuk momen penting.\n- Animasi harus selesai kira-kira sebelum s.dur.\n\nContoh satu scene:\n${DEFAULT.replace(/^\/\/ =+ SCENE 1 =+\n/, "")}\n\nScene yang harus dibuat:\n${list.map(([i, sc]) => `Scene ${i} (${sc.seconds} dtk)\nNarasi: ${sc.narration}\nVisual: ${sc.camera}`).join("\n\n")}\n\n${JSONONLY}\nFormat: {"scenes":[{"index":${list[0][0]},"code":"...kode sebagai string JSON..."}]}`; }
 };
 const panelHtml = (n, head) => `<div id="p${n}" ${n > 1 ? "hidden" : ""}>${head}<div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="send${n}">Kirim ke Claude</button><button id="copy${n}">Salin prompt</button></div><textarea id="in${n}" style="height:90px;margin-top:10px" placeholder="Tempel jawaban Claude di sini" aria-label="Jawaban Claude langkah ${n}"></textarea><button class="pri" id="ok${n}" style="margin-top:8px">Proses jawaban</button><div id="out${n}" class="stat" style="margin-top:8px" role="status"></div></div>`;
 $("panels").innerHTML =
-  panelHtml(1, `<label for="topic">Topik video</label><input id="topic" class="fld" placeholder="contoh: disiplin pagi"><label for="vdur">Durasi video</label><select id="vdur" class="fld"><option value="30">30 detik</option><option value="60" selected>1 menit</option></select>`) +
+  panelHtml(1, `<label for="topic">Topik video</label><input id="topic" class="fld" placeholder="contoh: disiplin pagi"><label for="vdur">Durasi video</label><select id="vdur" class="fld"><option value="30">30 detik</option><option value="50">50 detik</option><option value="60" selected>1 menit</option></select>`) +
   panelHtml(2, `<p class="hint" id="idea2" style="margin-top:0">Pilih ide di langkah 1 dulu.</p>`) +
   panelHtml(3, `<label for="grp">Kelompok scene (4 scene per prompt)</label><select id="grp" class="fld"><option value="0">Scene 1-4</option></select>`);
 function showStep(n) { document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.s === n)); [1, 2, 3].forEach((i) => ($("p" + i).hidden = i !== n)); }
@@ -303,16 +462,18 @@ const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : "";
 const DONE = {
   1: (d) => {
     if (!Array.isArray(d.ideas) || !d.ideas.length) throw new Error("Format salah: butuh array ideas");
-    S.ideas = d.ideas; S.idea = null;
+    S.ideas = d.ideas.map((x) => ({ ...x, message: x.angle ?? x.message ?? x.summary, visual: x.visualStyle ?? x.visual })); S.idea = null;
     say(1, d.ideas.length + " ide masuk. Pilih satu:");
     $("out1").insertAdjacentHTML("beforeend", d.ideas.map((x, i) => `<button class="pick" data-i="${i}"><b>${esc(x.title)}</b>${esc(x.hook)}</button>`).join(""));
     $("out1").querySelectorAll(".pick").forEach((b) => (b.onclick = () => { S.idea = S.ideas[+b.dataset.i]; $("out1").querySelectorAll(".pick").forEach((x) => x.classList.toggle("on", x === b)); $("idea2").textContent = "Ide terpilih: " + S.idea.title; showStep(2); }));
   },
   2: (d) => {
-    if (!Array.isArray(d.scenes) || !d.scenes.length || d.scenes.some((x) => typeof x.narration !== "string")) throw new Error("Format salah: tiap scene butuh narration");
-    S.scenes = d.scenes.map((x) => ({ ...x, seconds: Math.max(2, +x.seconds || 7.5) })); S.codes = {};
+    const L = d.scenes;
+    if (!Array.isArray(L) || !L.length || L.some((x) => typeof (x.text ?? x.narration) !== "string")) throw new Error("Format salah: tiap scene butuh text");
+    S.scenes = L.map((x) => ({ narration: x.text ?? x.narration, camera: x.visual ?? "", seconds: Math.max(1.5, +(x.duration ?? x.seconds) || 7.5), theme: x.theme || "paper", emphasis: x.emphasis, move: x.camera })); S.codes = {};
+    S.meta = { title: d.title, seo: d.seo, background: d.background };
     $("grp").innerHTML = Array.from({ length: Math.ceil(S.scenes.length / 4) }, (_, g) => `<option value="${g}">Scene ${g * 4 + 1}-${Math.min(S.scenes.length, g * 4 + 4)}</option>`).join("");
-    say(2, S.scenes.length + " scene masuk:");
+    say(2, S.scenes.length + " scene masuk" + (d.seo ? ", SEO dan latar tersimpan" : "") + ":");
     $("out2").insertAdjacentHTML("beforeend", S.scenes.map((x, i) => `<div style="margin-top:4px"><b>${i + 1}.</b> ${esc(x.narration)}</div>`).join(""));
     showStep(3);
   },
@@ -322,7 +483,7 @@ const DONE = {
     const ids = Object.keys(S.codes).map(Number).sort((a, b) => a - b);
     $("code").value = ids.map((i) => `// ===== SCENE ${i} =====\n${S.codes[i]}`).join("\n\n");
     playing = false; $("play").textContent = "Putar"; parse();
-    scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) sc.dur = m.seconds; });
+    scenes.forEach((sc, k) => { const m = CAT(ids[k]); if (m) { sc.dur = m.seconds; sc.theme = m.theme; sc.dark = m.theme === "night"; } });
     recalc(); buildList(); draw();
     say(3, ids.length + " scene animasi dimuat (" + ids.join(", ") + "). Putar untuk cek, lalu ambil kelompok berikutnya.");
   }

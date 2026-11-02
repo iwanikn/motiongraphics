@@ -443,7 +443,7 @@ const P = {
     return $("tpl-narasi").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
     const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
-    return `Kamu menulis kode animasi canvas untuk video vertikal. Tiap scene adalah ISI fungsi JavaScript yang dipanggil setiap frame dengan (s, ctx).\n\n${API}\n\nAturan:\n- Kode scene hanya memakai s dan ctx. Semua nilai dihitung dari s.t (tanpa state global, tanpa Math.random, tanpa DOM atau fetch).\n- Deklarasi const milik sendiri di tiap scene (warna dll.), jangan bergantung ke scene lain.\n- Layout vertikal 720x1280. Sisakan area atas (y<190) untuk judul. Teks Indonesia, ukuran terbaca.\n- Tambahkan s.sfx untuk momen penting.\n- Animasi harus selesai kira-kira sebelum s.dur.\n\nContoh satu scene:\n${DEFAULT.replace(/^\/\/ =+ SCENE 1 =+\n/, "")}\n\nScene yang harus dibuat:\n${list.map(([i, sc]) => `Scene ${i} (${sc.seconds} dtk)\nNarasi: ${sc.narration}\nVisual: ${sc.camera}`).join("\n\n")}\n\n${JSONONLY}\nFormat: {"scenes":[{"index":${list[0][0]},"code":"...kode sebagai string JSON..."}]}`; }
+    return `Kamu menulis kode animasi canvas untuk video vertikal. Tiap scene adalah ISI fungsi JavaScript yang dipanggil setiap frame dengan (s, ctx).\n\n${API}\n\nAturan:\n- Kode scene hanya memakai s dan ctx. Semua nilai dihitung dari s.t (tanpa state global, tanpa Math.random, tanpa DOM atau fetch).\n- Deklarasi const milik sendiri di tiap scene (warna dll.), jangan bergantung ke scene lain.\n- Layout vertikal 720x1280. Sisakan area atas (y<190) untuk judul. Teks Indonesia, ukuran terbaca.\n- Tambahkan s.sfx untuk momen penting.\n- Animasi harus selesai kira-kira sebelum s.dur.\n\nContoh satu scene:\n${DEFAULT.replace(/^\/\/ =+ SCENE 1 =+\n/, "")}\n\nScene yang harus dibuat:\n${list.map(([i, sc]) => `Scene ${i} (${sc.seconds} dtk)\nNarasi: ${sc.narration}\nVisual: ${sc.camera}\nKata ditekankan: ${sc.emphasis || "-"}\nGerak kamera: ${sc.move || "-"}`).join("\n\n")}\n\n${JSONONLY}\nFormat: {"scenes":[{"index":${list[0][0]},"code":"...kode sebagai string JSON..."}]}`; }
 };
 const panelHtml = (n, head) => `<div id="p${n}" ${n > 1 ? "hidden" : ""}>${head}<div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="send${n}">Kirim ke Claude</button><button id="copy${n}">Salin prompt</button></div><textarea id="in${n}" style="height:90px;margin-top:10px" placeholder="Tempel jawaban Claude di sini" aria-label="Jawaban Claude langkah ${n}"></textarea><button class="pri" id="ok${n}" style="margin-top:8px">Proses jawaban</button><div id="out${n}" class="stat" style="margin-top:8px" role="status"></div></div>`;
 $("panels").innerHTML =
@@ -459,6 +459,25 @@ const say = (n, m, bad) => { $("out" + n).style.color = bad ? "var(--err)" : "";
   $("copy" + n).onclick = async () => { const p = prompt(); if (!p) return; try { await navigator.clipboard.writeText(p); say(n, "Prompt tersalin."); } catch { say(n, "Gagal menyalin. Izinkan akses clipboard di browser.", true); } };
   $("ok" + n).onclick = () => { try { DONE[n](readJson($("in" + n).value)); } catch (e) { say(n, e.message, true); } };
 });
+const MOVES = ["push", "pull", "pan-left", "pan-right", "tilt-up", "tilt-down", "roll", "orbit", "crash", "handheld", "shake"], THEMES = ["paper", "dusk", "night"];
+let copyBuf = [];
+function renderScenes() {
+  const o = $("out2"), m = S.meta || {}, seo = m.seo, bg = m.background || {};
+  const opt = (list, v) => list.map((x) => `<option ${x === v ? "selected" : ""}>${x}</option>`).join("");
+  const words = S.scenes.reduce((a, x) => a + x.narration.trim().split(/\s+/).length, 0), secs = S.scenes.reduce((a, x) => a + x.seconds, 0);
+  copyBuf = [];
+  const cp = (t) => `<button data-c="${copyBuf.push(t) - 1}" style="padding:2px 8px;font-size:12px">Salin</button>`;
+  const row = (k, v, txt) => `<div style="margin-top:6px"><b>${k}</b> ${cp(txt)}<div style="white-space:pre-wrap">${esc(v)}</div></div>`;
+  const seoHtml = seo ? `<details style="margin-top:8px"><summary><b>SEO dan latar</b></summary>${row("Judul", seo.title, seo.title)}${row("Deskripsi", seo.description, seo.description)}${row("Caption pendek", seo.short, seo.short)}${row("Tags", (seo.tags || []).join(", "), (seo.tags || []).join(", "))}${row("Hashtag", (seo.hashtags || []).join(" "), (seo.hashtags || []).join(" "))}<div style="margin-top:8px">${THEMES.filter((t) => bg[t]).map((t) => `<span style="display:inline-block;margin:0 6px 4px 0;padding:6px 10px;border-radius:8px;border:1px solid var(--br);background:linear-gradient(${bg[t].top},${bg[t].bottom});color:${t === "night" ? "#f1f5f9" : "#1c2433"}">${t}: ${esc(bg[t].pattern)}</span>`).join("")}</div></details>` : "";
+  const sc = S.scenes.map((x, i) => `<div style="border-top:1px solid var(--br);padding:8px 0"><b>Scene ${i + 1}</b><textarea data-f="narration" data-i="${i}" aria-label="Narasi scene ${i + 1}" style="height:70px;margin-top:4px;font:inherit">${esc(x.narration)}</textarea><div style="display:grid;grid-template-columns:1fr 64px 1fr 1fr;gap:6px;margin-top:4px"><input class="fld" style="margin:0" data-f="emphasis" data-i="${i}" value="${esc(x.emphasis)}" aria-label="Kata ditekankan"><input class="fld" style="margin:0" type="number" step="0.1" data-f="seconds" data-i="${i}" value="${x.seconds}" aria-label="Durasi detik"><select class="fld" style="margin:0" data-f="move" data-i="${i}" aria-label="Gerak kamera">${opt(MOVES, x.move)}</select><select class="fld" style="margin:0" data-f="theme" data-i="${i}" aria-label="Tema">${opt(THEMES, x.theme)}</select></div><details><summary class="stat">Visual</summary><textarea data-f="camera" data-i="${i}" aria-label="Visual scene ${i + 1}" style="height:90px;font:inherit">${esc(x.camera)}</textarea></details></div>`).join("");
+  o.innerHTML = `<div><b>${esc(m.title || S.idea?.title)}</b> \u2022 ${S.scenes.length} scene \u2022 ${words} kata \u2022 ${secs.toFixed(1)} dtk</div>${seoHtml}${sc}`;
+  if (!o._w) {
+    o._w = 1;
+    const upd = (e) => { const t = e.target, i = t.dataset.i; if (i === undefined) return; S.scenes[+i][t.dataset.f] = t.dataset.f === "seconds" ? Math.max(1.5, +t.value || 7.5) : t.value; };
+    o.addEventListener("input", upd); o.addEventListener("change", upd);
+    o.addEventListener("click", (e) => { const c = e.target.dataset?.c; if (c !== undefined) navigator.clipboard.writeText(copyBuf[+c]).then(() => { e.target.textContent = "Tersalin"; }, () => { e.target.textContent = "Gagal"; }); });
+  }
+}
 const DONE = {
   1: (d) => {
     if (!Array.isArray(d.ideas) || !d.ideas.length) throw new Error("Format salah: butuh array ideas");
@@ -474,7 +493,7 @@ const DONE = {
     S.meta = { title: d.title, seo: d.seo, background: d.background };
     $("grp").innerHTML = Array.from({ length: Math.ceil(S.scenes.length / 4) }, (_, g) => `<option value="${g}">Scene ${g * 4 + 1}-${Math.min(S.scenes.length, g * 4 + 4)}</option>`).join("");
     say(2, S.scenes.length + " scene masuk" + (d.seo ? ", SEO dan latar tersimpan" : "") + ":");
-    $("out2").insertAdjacentHTML("beforeend", S.scenes.map((x, i) => `<div style="margin-top:4px"><b>${i + 1}.</b> ${esc(x.narration)}</div>`).join(""));
+    renderScenes();
     showStep(3);
   },
   3: (d) => {

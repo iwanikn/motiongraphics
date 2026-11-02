@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Engine animasi - Tahap 1</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f5f8;--card:#ffffff;--tx:#1c2433;--mu:#6b7685;--br:#dbe2eb;--ac:#f26a1b;--acx:#ffffff;--err:#c92a2a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e121c;--card:#171d2b;--tx:#f1f5f9;--mu:#94a0b3;--br:#2a3347;--err:#ff8787}}
+:root[data-theme="dark"]{--bg:#0e121c;--card:#171d2b;--tx:#f1f5f9;--mu:#94a0b3;--br:#2a3347;--err:#ff8787}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:500 14px/1.45 "Plus Jakarta Sans","Segoe UI",system-ui,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 40px;display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:20px}
+@media(max-width:820px){.wrap{grid-template-columns:1fr}}
+h1{font-size:20px;font-weight:800;margin:0 0 2px}
+p.sub{margin:0 0 14px;color:var(--mu)}
+.card{background:var(--card);border:1px solid var(--br);border-radius:14px;padding:14px}
+.stage{position:relative;width:100%;aspect-ratio:9/16;border-radius:12px;overflow:hidden;border:1px solid var(--br);background:#000}
+canvas{width:100%;height:100%;display:block}
+.bar{display:flex;gap:10px;align-items:center;margin-top:12px}
+button{font:inherit;font-weight:700;border:1px solid var(--br);background:var(--card);color:var(--tx);border-radius:10px;padding:8px 14px;cursor:pointer}
+button.pri{background:var(--ac);color:var(--acx);border-color:var(--ac)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #4dabf7;outline-offset:2px}
+input[type=range]{flex:1;accent-color:var(--ac)}
+.time{font-variant-numeric:tabular-nums;color:var(--mu);min-width:92px;text-align:right}
+textarea{width:100%;height:300px;resize:vertical;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;background:var(--bg);color:var(--tx);border:1px solid var(--br);border-radius:10px;padding:10px}
+label{display:block;font-weight:700;margin:0 0 6px}
+.hint{color:var(--mu);font-size:12.5px;margin:6px 0 12px}
+.row{display:grid;grid-template-columns:auto 1fr 84px 92px;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--br)}
+.row:first-child{border-top:0}
+.row input,.row select{font:inherit;background:var(--bg);color:var(--tx);border:1px solid var(--br);border-radius:8px;padding:5px 6px;width:100%}
+.dot{width:26px;height:26px;border-radius:50%;background:var(--br);display:grid;place-items:center;font-weight:800;font-size:12px;cursor:pointer;border:0;padding:0;color:var(--tx)}
+.dot.on{background:var(--ac);color:#fff}
+.stat{font-size:12.5px;color:var(--mu)}
+.err{color:var(--err);font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <h1>Engine animasi</h1>
+    <p class="sub">Pratinjau 9:16 untuk kode scene. Tahap 1 dari 6.</p>
+    <div class="stage"><canvas id="cv" width="720" height="1280"></canvas></div>
+    <div class="bar">
+      <button class="pri" id="play" aria-label="Putar atau jeda">Putar</button>
+      <input type="range" id="seek" min="0" max="1" step="0.01" value="0" aria-label="Posisi waktu">
+      <span class="time" id="time">0.00 / 0.00</span>
+    </div>
+    <div class="stat" id="stat" style="margin-top:8px"></div>
+    <div class="err" id="err" role="alert"></div>
+  </div>
+  <div class="card">
+    <label for="code">Kode scene</label>
+    <textarea id="code" spellcheck="false"></textarea>
+    <p class="hint">Tempel satu scene, atau beberapa scene yang dipisah baris <b>// ===== SCENE 5 =====</b>. Tiap scene dijalankan terpisah.</p>
+    <button class="pri" id="load">Muat scene</button>
+    <div id="list" style="margin-top:14px"></div>
+    <p class="hint">Lingkaran = latar gelap. Tombol sfx hanya dicatat dulu, suara menyusul di tahap 5.</p>
+  </div>
+</div>
+
+<script>
+/* ===== ENGINE s ===== */
+const CL = (x) => Math.min(1, Math.max(0, x));
+const EASE = {
+  in: (k) => { k = CL(k); return k * k * k; },
+  out: (k) => { k = CL(k); return 1 - Math.pow(1 - k, 3); },
+  inOut: (k) => { k = CL(k); return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
+};
+const SPR = { snappy: [16, 0.72], bouncy: [11, 0.4], heavy: [7, 0.55], soft: [6, 0.9], gentle: [6, 0.9] };
+const FONT = '"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif';
+
+function createS(ctx, t, dur, sfxLog) {
+  const dim = (c) => (c === undefined || c === "none" ? null : c);
+  const withAlpha = (a, fn) => { ctx.save(); ctx.globalAlpha *= a ?? 1; fn(); ctx.restore(); };
+  const paint = (o, fillDefault) => {
+    const f = dim(o.fill ?? fillDefault), st = dim(o.stroke);
+    if (f) { ctx.fillStyle = f; ctx.fill(); }
+    if (st) { ctx.strokeStyle = st; ctx.lineWidth = o.width ?? 2; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); }
+  };
+  const path = (pts, close) => { ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); if (close) ctx.closePath(); };
+  const spring = (t0, preset = "snappy") => {
+    const [w, z] = SPR[preset] || SPR.snappy, tau = t - t0;
+    if (tau <= 0) return 0;
+    const wd = w * Math.sqrt(1 - z * z);
+    return 1 - Math.exp(-z * w * tau) * (Math.cos(wd * tau) + (z * w / wd) * Math.sin(wd * tau));
+  };
+  const textBase = (str, x, y, o) => {
+    ctx.font = `800 ${o.size ?? 24}px ${FONT}`;
+    ctx.textAlign = o.align ?? "center";
+    ctx.textBaseline = "middle";
+  };
+  const s = {
+    t, dur,
+    clamp: (x, a, b) => Math.min(b, Math.max(a, x)),
+    ease: EASE,
+    at: (start, d) => CL((t - start) / d),
+    keys: (k) => {
+      if (t <= k[0][0]) return k[0][1];
+      for (let i = 1; i < k.length; i++) if (t <= k[i][0]) { const [t0, v0] = k[i - 1], [t1, v1] = k[i]; return v0 + (v1 - v0) * (t - t0) / (t1 - t0 || 1); }
+      return k[k.length - 1][1];
+    },
+    wave: (f = 1, a = 1, ph = 0) => Math.sin(2 * Math.PI * f * t + ph) * a,
+    spring,
+    stagger: (i, start = 0, gap = 0.1, preset = "snappy") => spring(start + i * gap, preset),
+    pop: (t0, d = 0.4) => {
+      const k = (t - t0) / d;
+      if (k <= 0) return 0;
+      if (k >= 1) return 1;
+      return 1 + 2.7 * Math.pow(k - 1, 3) + 1.7 * Math.pow(k - 1, 2);
+    },
+    group: (o, fn) => {
+      ctx.save();
+      ctx.translate(o.x ?? 0, o.y ?? 0);
+      if (o.rotate) ctx.rotate(o.rotate);
+      const sc = o.scale ?? 1; ctx.scale(sc, sc);
+      ctx.globalAlpha *= o.alpha ?? 1;
+      fn();
+      ctx.restore();
+    },
+    shape: (pts, o = {}) => withAlpha(o.alpha, () => { path(pts, true); paint(o, "none"); }),
+    polyline: (pts, o = {}) => withAlpha(o.alpha, () => {
+      let want = (o.draw ?? 1);
+      if (want <= 0) return;
+      const seg = [], total = pts.slice(1).reduce((a, p, i) => { const l = Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]); seg.push(l); return a + l; }, 0);
+      let left = total * CL(want);
+      ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let i = 1; i < pts.length && left > 0; i++) {
+        const l = seg[i - 1], k = Math.min(1, left / (l || 1));
+        ctx.lineTo(pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * k, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * k);
+        left -= l;
+      }
+      paint({ stroke: o.stroke ?? "#000", width: o.width }, "none");
+    }),
+    rect: (x, y, w, h, o = {}) => withAlpha(o.alpha, () => { ctx.beginPath(); ctx.roundRect(x, y, Math.max(0, w), h, o.r ?? 0); paint(o, "none"); }),
+    circle: (x, y, r, o = {}) => withAlpha(o.alpha, () => { ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), 0, Math.PI * 2); paint(o, "none"); }),
+    arc: (x, y, r, a0, a1, o = {}) => withAlpha(o.alpha, () => { ctx.beginPath(); ctx.arc(x, y, Math.max(0, r), a0, a1); paint({ stroke: o.stroke ?? "#000", width: o.width }, "none"); }),
+    line: (x1, y1, x2, y2, o = {}) => withAlpha(o.alpha, () => { path([[x1, y1], [x2, y2]]); paint({ stroke: o.stroke ?? "#000", width: o.width }, "none"); }),
+    text: (str, x, y, o = {}) => withAlpha(o.alpha, () => { textBase(str, x, y, { ...o, size: o.size ?? 20 }); ctx.font = `600 ${o.size ?? 20}px ${FONT}`; ctx.fillStyle = o.color ?? "#000"; ctx.fillText(str, x, y); }),
+    text3d: (str, x, y, o = {}) => withAlpha(o.alpha, () => {
+      const sc = o.draw ?? 1;
+      if (sc <= 0) return;
+      ctx.save();
+      ctx.translate(x, y); if (o.rotate) ctx.rotate(o.rotate); ctx.scale(sc, sc);
+      textBase(str, 0, 0, { ...o, size: o.size ?? 40 });
+      const depth = o.depth ?? 0;
+      if (depth > 0) { ctx.fillStyle = o.side ?? "#000"; for (let i = depth; i >= 1; i--) ctx.fillText(str, i * 0.5, i * 0.8); }
+      ctx.fillStyle = o.color ?? "#000"; ctx.fillText(str, 0, 0);
+      ctx.restore();
+    }),
+    tag: (str, x, y, o = {}) => {
+      const k = o.draw ?? 1; if (k <= 0) return;
+      const size = o.size ?? 18;
+      ctx.save(); ctx.font = `800 ${size}px ${FONT}`;
+      const w = ctx.measureText(str).width + 28, h = size + 18; ctx.restore();
+      s.group({ x, y, scale: 0.8 + 0.2 * Math.min(k, 1.2), alpha: CL(k * 2) }, () => {
+        ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, h / 2); ctx.fillStyle = o.fill ?? "#3b5bdb"; ctx.fill();
+        ctx.font = `800 ${size}px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff"; ctx.fillText(str, 0, 1);
+      });
+    },
+    sfx: (name, at, vol = 1, pitch = 1) => { sfxLog.push({ name, at, vol, pitch }); }
+  };
+  return s;
+}
+
+/* ===== PLAYER ===== */
+const $ = (id) => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+const DEFAULT = `// ===== SCENE 1 =====
+const BLUE = "#3b5bdb", HOT = "#ff7a45";
+s.rect(60, 300, 600, 140, { r: 28, fill: BLUE, stroke: "none" });
+s.text3d("Halo, engine!", 360, 372, { size: 56, color: "#fff", depth: 0, align: "center", alpha: s.at(0, 0.6) });
+s.circle(360 + s.wave(0.5, 220), 700, 44, { fill: HOT, stroke: "none" });
+s.tag("TEMPEL SCENEMU", 360, 900, { size: 22, fill: BLUE, draw: s.pop(0.8, 0.4) });
+s.text3d("BRUK!", 360, 1050, { size: 80, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(2, 0.4) });
+s.sfx("pop", 2, 0.6);`;
+$("code").value = DEFAULT;
+
+let scenes = [], total = 0, T = 0, playing = false, last = 0, errShown = "";
+
+function parse() {
+  const txt = $("code").value;
+  const parts = txt.split(/^\/\/ ={3,} SCENE\s*\d+ ={3,}\s*$/m).map((p) => p.trim()).filter(Boolean);
+  const old = scenes;
+  scenes = parts.map((code, i) => {
+    const fn = (() => { try { return new Function("s", "ctx", code); } catch (e) { return e; } })();
+    return { code, fn, dur: old[i]?.dur ?? 6.5, dark: old[i]?.dark ?? /const DARK = true/.test(code), sfx: [] };
+  });
+  recalc(); buildList(); T = 0; draw();
+}
+function recalc() { total = scenes.reduce((a, c) => a + c.dur, 0); $("seek").max = total || 1; }
+function buildList() {
+  const el = $("list"); el.innerHTML = "";
+  scenes.forEach((sc, i) => {
+    const r = document.createElement("div"); r.className = "row";
+    r.innerHTML = `<button class="dot ${sc.dark ? "on" : ""}" aria-label="Latar gelap scene ${i + 1}" title="Latar gelap">${i + 1}</button>
+      <span class="stat" id="st${i}">${sc.fn instanceof Error ? "Error sintaks" : "Siap"}</span>
+      <input type="number" min="1" max="30" step="0.1" value="${sc.dur}" aria-label="Durasi scene ${i + 1} dalam detik">
+      <button>Lompat</button>`;
+    const [dot, , inp, jump] = r.children;
+    dot.onclick = () => { sc.dark = !sc.dark; dot.classList.toggle("on", sc.dark); draw(); };
+    inp.onchange = () => { sc.dur = Math.max(1, +inp.value || 6.5); recalc(); draw(); };
+    jump.onclick = () => { T = scenes.slice(0, i).reduce((a, c) => a + c.dur, 0); draw(); };
+    el.appendChild(r);
+  });
+}
+function locate(time) {
+  let acc = 0;
+  for (let i = 0; i < scenes.length; i++) { if (time < acc + scenes[i].dur || i === scenes.length - 1) return [i, Math.min(time - acc, scenes[i].dur)]; acc += scenes[i].dur; }
+  return [0, 0];
+}
+function draw() {
+  $("seek").value = T; $("time").textContent = T.toFixed(2) + " / " + total.toFixed(2);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+  if (!scenes.length) { ctx.clearRect(0, 0, 720, 1280); return; }
+  const [i, lt] = locate(T), sc = scenes[i];
+  ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7"; ctx.fillRect(0, 0, 720, 1280);
+  let msg = "";
+  if (sc.fn instanceof Error) msg = "Scene " + (i + 1) + ": " + sc.fn.message;
+  else {
+    const log = [];
+    try { ctx.save(); sc.fn(createS(ctx, lt, sc.dur, log), ctx); ctx.restore(); sc.sfx = log; }
+    catch (e) { ctx.restore(); msg = "Scene " + (i + 1) + " @ " + lt.toFixed(2) + "s: " + e.message; }
+  }
+  if (msg !== errShown) { errShown = msg; $("err").textContent = msg; }
+  $("stat").textContent = `Scene ${i + 1} dari ${scenes.length} \u2022 sfx dicatat: ${sc.sfx.length}`;
+}
+function tick(now) {
+  if (!playing) return;
+  T += (now - last) / 1000; last = now;
+  if (T >= total) { T = total; playing = false; $("play").textContent = "Putar"; }
+  draw(); if (playing) requestAnimationFrame(tick);
+}
+$("play").onclick = () => {
+  if (!scenes.length) return;
+  playing = !playing; $("play").textContent = playing ? "Jeda" : "Putar";
+  if (playing) { if (T >= total) T = 0; last = performance.now(); requestAnimationFrame(tick); }
+};
+$("seek").oninput = (e) => { T = +e.target.value; draw(); };
+$("load").onclick = () => { playing = false; $("play").textContent = "Putar"; parse(); };
+document.fonts.load('800 24px "Plus Jakarta Sans"').finally(parse);
+</script>
+</body>
+</html>

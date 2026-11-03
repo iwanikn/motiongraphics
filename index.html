@@ -81,6 +81,11 @@ body{background:var(--bg)}
 .idea.on,.idea:hover{border-color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)}
 .idea .ik{color:var(--ac);font-size:11px;font-weight:800;letter-spacing:.04em}.idea b{font-size:16px;line-height:1.25}
 .idea q{display:block;background:rgba(242,106,27,.1);border-radius:8px;padding:8px 10px;font-weight:700}.idea .id{color:var(--mu)}
+.dd{position:relative}.ddb{display:flex;justify-content:space-between;align-items:center;text-align:left;font-weight:500}
+.ddl{position:absolute;left:0;right:0;top:100%;margin-top:6px;background:var(--card);border:1px solid var(--br);border-radius:14px;box-shadow:0 12px 32px rgba(20,28,45,.18);padding:6px;z-index:20}
+.opt{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:0;background:none;border-radius:10px;padding:9px 10px;font-weight:500}
+.opt b{display:block;font-size:14px}.opt small{display:block;color:var(--mu);font-size:12px}.opt i{color:var(--ac);font-style:normal;font-weight:800}
+.opt.on{background:rgba(242,106,27,.12)}.opt.on b{color:var(--ac)}.opt:hover{background:rgba(242,106,27,.08)}
 .cmain{grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:20px}.cmain[hidden]{display:none}
 @media(max-width:900px){.cmain{grid-template-columns:1fr}}
 .wide{width:100%;padding:11px}.pcard{display:flex;flex-direction:column;gap:2px;border:1px solid var(--ac);border-radius:12px;padding:11px 12px}.rh{display:flex;justify-content:space-between}
@@ -322,7 +327,7 @@ Tulis SEMUA scene di dalam SATU blok kode ```js saja, supaya bisa disalin sekali
 Jangan memecah jawaban menjadi beberapa blok kode. Pakai nomor scene persis seperti di atas. Jangan gunakan artifact/canvas dan jangan menambahkan penjelasan di luar format yang diminta.
 </script>
 <script type="text/plain" id="tpl-ide">
-Kamu adalah penulis konten video pendek motivasi berbahasa Indonesia (TikTok, Reels, Shorts, Threads) yang terkenal karena idenya selalu segar dan tidak pasaran.
+Kamu adalah penulis konten video pendek {{JENIS}} berbahasa Indonesia (TikTok, Reels, Shorts, Threads) yang terkenal karena idenya selalu segar dan tidak pasaran.
 Gaya video: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan. Durasi 30-45 detik.
 Gaya animasi "Cara Kerja": Video penjelas CARA KERJA dalam SATU SHOT 3D TANPA TRANSISI: seluruh video membahas SATU benda yang cocok dengan topiknya (laptop, ponsel, kulkas, celengan, mesin kopi, jam, sepeda, pompa, otak/jantung sebagai model) yang dibuka dan dibongkar pelan-pelan. Engine tidak memberi transisi dan tidak menggerakkan kamera, jadi KAMU kameranya. WAJIB 3D SUNGGUHAN, bukan gambar datar: salin helper 3D dari contoh gaya ini (`view`, `P`, `box`, `quad`, `ring`, `shade`, `mixHex`), lalu rakit benda dari banyak `box` (alas, dinding, tutup, komponen) dengan koordinat dunia x kanan, y belakang, z atas; tiap box otomatis menampilkan sisi atas/depan/samping yang menghadap kamera dengan terang-gelap dari arah cahaya. Bagian yang bergerak diputar di 3D lewat opsi `T` (mis. tutup berputar di engsel, pintu membuka, roda berputar), detail permukaan (layar, tombol, label, bilah kipas) pakai `quad`/`ring` di bidang 3D. Gambar dari belakang ke depan dan dari bawah ke atas. Warna box selalu hex (#rrggbb), jangan rgb(). CARA MENULIS: (a) tulis fungsi `world(st, yaw)` yang menggambar benda LENGKAP; SALIN persis di semua scene supaya bentuk, ukuran, dan warnanya tidak berubah; `st` berisi keadaan yang berubah (tutup 0..1, layar menyala, casing terangkat 0..1, suhu, putaran). (b) kamera `{ x, y, z, yaw }` dibuat dengan `aim([x, y, z], zoom, yaw)` (titik 3D di tengah layar), definisikan kamera bernama di atas (`CAM_WHOLE`, `CAM_BASE`, ...) dan gambar lewat `shoot(cam, st)` TANPA clip: benda boleh mengisi layar sampai ke atas dan berada di belakang judul. (c) KESINAMBUNGAN: kamera scene ini DIMULAI persis dari kamera akhir scene sebelumnya lalu bergerak halus dengan `move(a, b, t0, t1)` ke bagian yang sedang dibahas dan BERHENTI TEPAT di kamera akhirnya: lihat utuh sambil berputar pelan (yaw berubah 0.3-0.5), mendekat ke komponen (zoom 1.8-2.5), geser ke komponen lain. Tulis kamera awal dan akhir di komentar baris pertama (`// kamera: CAM_WHOLE -> CAM_BASE`). (d) BONGKAR: casing/penutup terangkat lurus ke atas dan memudar sehingga komponen di dalamnya terlihat, lalu komponen itu bekerja (memanas jadi oranye, kipas berputar, cairan mengalir, roda gigi berputar). TATA LETAK LAYAR (tidak ikut zoom, DIGAMBAR TERAKHIR di atas benda): (1) JUDUL BESAR DUA BARIS di kiri atas: label langkah mono kecil tinta "02 / 05" dengan garis pendek di y 140 (x 60); baris pertama `s.text3d` size 62-66 depth 0 `align: "left"` tinta #1c2433 di y 212 dengan pendar terang di sekitarnya (`ctx.shadowColor = "rgba(238,242,247,0.95)"`, `ctx.shadowBlur = 22`, gambar dua kali); baris kedua size 56-60 huruf PUTIH di atas PLAT STABILO biru kobalt #3b5bdb (rect r 14 bergaris tepi putih tebal 4, x 48, y 246, tinggi 74, lebar mengikuti teks dan memanjang masuk) di y 285. Judul berganti per bagian dan boleh menimpa benda. (2) METERAN BULAT di kanan atas (pusat 584, 200, r 72): lingkaran putih di belakangnya, busur 270° abu #dbe2eb yang TERISI warna keadaan sesuai angka, angka `s.text3d` size 42 di tengah yang MENGHITUNG mengikuti gerakan, satuan kecil abu di bawahnya ("°C prosesor", "sudut layar", "% terbuka"), dan kapsul putih kecil di bawah meteran berisi titik warna + kata keadaan kapital: abu #6b7685 "MATI"/"TERTUTUP", biru #3b5bdb "BEKERJA"/"TERBUKA", hijau #12b886 "MENYALA"/"DINGIN", oranye #ff7a45 "PANAS", merah #e03131 "BAHAYA". DETAIL: label komponen `s.tag("← KIPAS", x, y, { size: 19, fill: "#1c2433" })` yang menempel di komponennya (posisi layar dari `toScreen(cam, [x, y, z])`); kata efek stiker miring `s.text3d("WUUSH!", x, y, { size: 60, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(t0, 0.4) })` hanya di momen puncak; boleh kartu perbesaran (kotak putih r 12 dengan judul mono kecil "DIPERBESAR") untuk detail kecil. Palet dingin dan bersih: aluminium #c3ccd8 / #aeb8c6, permukaan terang #d5dce6, gelap #2a3140 / #1c2433, papan sirkuit biru #22577a, aksen biru kobalt #3b5bdb dan biru langit #4dabf7, hijau #12b886 untuk yang aktif/aman, oranye #ff7a45 untuk panas, tembaga #d08850 untuk pipa/kabel. Outline tinta tipis #1c2433. Gerakan mekanis sebab-akibat yang tenang dan presisi; tanpa burst energi, tanpa coretan, tanpa tokoh kartun, tanpa wajah. Pakai tema "paper" untuk semua scene agar latarnya menyambung. Jangan taruh apa pun di y 880-1130 (tempat subtitle).
 
@@ -340,7 +345,7 @@ Bahasa SEDERHANA, harus langsung dipahami sekali dengar oleh siapa saja (anak SM
 - Metafora boleh, tapi bendanya sehari-hari dan artinya langsung dijelaskan dengan kata biasa; penonton tidak boleh harus mikir untuk paham.
 
 ## Tugas
-Buat 5 ide video pendek motivasi.
+Buat 5 ide video pendek {{JENIS}}.
 Topik / kata kunci: {{TOPIC}}. Dekati topik ini dari sudut yang berbeda di setiap ide.
 
 Durasi video: {{DURLABEL}}. Tiap ide harus punya bahan yang pas untuk durasi itu: video panjang butuh beberapa poin, contoh, atau alur cerita; video pendek cukup satu gagasan yang tajam.
@@ -367,7 +372,7 @@ Jawab HANYA dengan satu blok kode ```json berisi:
 Jangan gunakan artifact/canvas dan jangan menambahkan penjelasan di luar format yang diminta.
 </script>
 <script type="text/plain" id="tpl-narasi">
-Kamu adalah penulis naskah video pendek motivasi berbahasa Indonesia. Gaya visual: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan.
+Kamu adalah penulis naskah video pendek {{JENIS}} berbahasa Indonesia. Gaya visual: Cara Kerja (cara kerja 3D: satu benda 3D dibongkar tanpa transisi, kamera zoom & berputar ke tiap bagian, latar biru-abu, judul besar dengan plat stabilo & meteran bulat). Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan.
 Gaya animasi "Cara Kerja": Video penjelas CARA KERJA dalam SATU SHOT 3D TANPA TRANSISI: seluruh video membahas SATU benda yang cocok dengan topiknya (laptop, ponsel, kulkas, celengan, mesin kopi, jam, sepeda, pompa, otak/jantung sebagai model) yang dibuka dan dibongkar pelan-pelan. Engine tidak memberi transisi dan tidak menggerakkan kamera, jadi KAMU kameranya. WAJIB 3D SUNGGUHAN, bukan gambar datar: salin helper 3D dari contoh gaya ini (`view`, `P`, `box`, `quad`, `ring`, `shade`, `mixHex`), lalu rakit benda dari banyak `box` (alas, dinding, tutup, komponen) dengan koordinat dunia x kanan, y belakang, z atas; tiap box otomatis menampilkan sisi atas/depan/samping yang menghadap kamera dengan terang-gelap dari arah cahaya. Bagian yang bergerak diputar di 3D lewat opsi `T` (mis. tutup berputar di engsel, pintu membuka, roda berputar), detail permukaan (layar, tombol, label, bilah kipas) pakai `quad`/`ring` di bidang 3D. Gambar dari belakang ke depan dan dari bawah ke atas. Warna box selalu hex (#rrggbb), jangan rgb(). CARA MENULIS: (a) tulis fungsi `world(st, yaw)` yang menggambar benda LENGKAP; SALIN persis di semua scene supaya bentuk, ukuran, dan warnanya tidak berubah; `st` berisi keadaan yang berubah (tutup 0..1, layar menyala, casing terangkat 0..1, suhu, putaran). (b) kamera `{ x, y, z, yaw }` dibuat dengan `aim([x, y, z], zoom, yaw)` (titik 3D di tengah layar), definisikan kamera bernama di atas (`CAM_WHOLE`, `CAM_BASE`, ...) dan gambar lewat `shoot(cam, st)` TANPA clip: benda boleh mengisi layar sampai ke atas dan berada di belakang judul. (c) KESINAMBUNGAN: kamera scene ini DIMULAI persis dari kamera akhir scene sebelumnya lalu bergerak halus dengan `move(a, b, t0, t1)` ke bagian yang sedang dibahas dan BERHENTI TEPAT di kamera akhirnya: lihat utuh sambil berputar pelan (yaw berubah 0.3-0.5), mendekat ke komponen (zoom 1.8-2.5), geser ke komponen lain. Tulis kamera awal dan akhir di komentar baris pertama (`// kamera: CAM_WHOLE -> CAM_BASE`). (d) BONGKAR: casing/penutup terangkat lurus ke atas dan memudar sehingga komponen di dalamnya terlihat, lalu komponen itu bekerja (memanas jadi oranye, kipas berputar, cairan mengalir, roda gigi berputar). TATA LETAK LAYAR (tidak ikut zoom, DIGAMBAR TERAKHIR di atas benda): (1) JUDUL BESAR DUA BARIS di kiri atas: label langkah mono kecil tinta "02 / 05" dengan garis pendek di y 140 (x 60); baris pertama `s.text3d` size 62-66 depth 0 `align: "left"` tinta #1c2433 di y 212 dengan pendar terang di sekitarnya (`ctx.shadowColor = "rgba(238,242,247,0.95)"`, `ctx.shadowBlur = 22`, gambar dua kali); baris kedua size 56-60 huruf PUTIH di atas PLAT STABILO biru kobalt #3b5bdb (rect r 14 bergaris tepi putih tebal 4, x 48, y 246, tinggi 74, lebar mengikuti teks dan memanjang masuk) di y 285. Judul berganti per bagian dan boleh menimpa benda. (2) METERAN BULAT di kanan atas (pusat 584, 200, r 72): lingkaran putih di belakangnya, busur 270° abu #dbe2eb yang TERISI warna keadaan sesuai angka, angka `s.text3d` size 42 di tengah yang MENGHITUNG mengikuti gerakan, satuan kecil abu di bawahnya ("°C prosesor", "sudut layar", "% terbuka"), dan kapsul putih kecil di bawah meteran berisi titik warna + kata keadaan kapital: abu #6b7685 "MATI"/"TERTUTUP", biru #3b5bdb "BEKERJA"/"TERBUKA", hijau #12b886 "MENYALA"/"DINGIN", oranye #ff7a45 "PANAS", merah #e03131 "BAHAYA". DETAIL: label komponen `s.tag("← KIPAS", x, y, { size: 19, fill: "#1c2433" })` yang menempel di komponennya (posisi layar dari `toScreen(cam, [x, y, z])`); kata efek stiker miring `s.text3d("WUUSH!", x, y, { size: 60, color: "#4dabf7", side: "#1c2433", depth: 6, rotate: -0.1, draw: s.pop(t0, 0.4) })` hanya di momen puncak; boleh kartu perbesaran (kotak putih r 12 dengan judul mono kecil "DIPERBESAR") untuk detail kecil. Palet dingin dan bersih: aluminium #c3ccd8 / #aeb8c6, permukaan terang #d5dce6, gelap #2a3140 / #1c2433, papan sirkuit biru #22577a, aksen biru kobalt #3b5bdb dan biru langit #4dabf7, hijau #12b886 untuk yang aktif/aman, oranye #ff7a45 untuk panas, tembaga #d08850 untuk pipa/kabel. Outline tinta tipis #1c2433. Gerakan mekanis sebab-akibat yang tenang dan presisi; tanpa burst energi, tanpa coretan, tanpa tokoh kartun, tanpa wajah. Pakai tema "paper" untuk semua scene agar latarnya menyambung. Jangan taruh apa pun di y 880-1130 (tempat subtitle).
 Kalau ada arahan gaya dari kreator, tulis setiap "visual" dan pilih "theme" mengikuti arahan itu.
 
@@ -760,7 +765,7 @@ $("file").onchange = async () => {
 }
 
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
-const S = { ideas: [], idea: null, scenes: [], codes: {}, meta: null };
+const S = { jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function readJson(txt) {
   const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
@@ -775,11 +780,11 @@ const JSONONLY = "Balas HANYA dengan JSON valid dalam satu blok kode, tanpa penj
 const CAT = (i) => S.scenes[i - 1];
 const P = {
   1: () => { const t = $("topic").value.trim(); if (!t) throw new Error("Isi topik dulu");
-    const dur = +$("vdur").value, v = { TOPIC: t, DURLABEL: fmtDur(dur) };
+    const dur = +$("vdur").value, v = { TOPIC: t, JENIS: JENIS[S.jenis].p, DURLABEL: fmtDur(dur) };
     return $("tpl-ide").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   2: () => { if (!S.idea) throw new Error("Pilih ide di langkah 1 dulu");
     const dur = +$("vdur").value, n = Math.max(2, Math.round(dur / 7.5)), words = Math.round(dur * 2.35);
-    const v = { TITLE: S.idea.title, HOOK: S.idea.hook, PESAN: S.idea.message ?? S.idea.summary ?? "", VISUAL: S.idea.visual ?? "", N: n, DURLABEL: fmtDur(dur), WORDS: words, PERSCENE: Math.round(words / n), AVG: +(dur / n).toFixed(1) };
+    const v = { JENIS: JENIS[S.jenis].p, TITLE: S.idea.title, HOOK: S.idea.hook, PESAN: S.idea.message ?? S.idea.summary ?? "", VISUAL: S.idea.visual ?? "", N: n, DURLABEL: fmtDur(dur), WORDS: words, PERSCENE: Math.round(words / n), AVG: +(dur / n).toFixed(1) };
     return $("tpl-narasi").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
     const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
@@ -797,7 +802,7 @@ function p1Html() {
   return `<div id="p1">
 <div class="f"><span class="fl">Mulai dari</span><select class="sel" aria-label="Mulai dari"><option>Minta ide dari topik</option><option disabled>Pakai narasi sendiri (segera)</option><option disabled>Promosi produk / jasa (segera)</option></select></div>
 <div class="f"><span class="fl">Bahasa</span><select class="sel" aria-label="Bahasa"><option>Bahasa Indonesia</option></select></div>
-<div class="f"><span class="fl">Jenis konten</span><select class="sel" aria-label="Jenis konten"><option>Motivasi</option></select></div>
+<div class="f dd"><span class="fl" id="jl">Jenis konten</span><button type="button" class="sel ddb" id="jbtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="jl jbtn"></button><div class="ddl" id="jlist" role="listbox" aria-labelledby="jl" hidden></div></div>
 <div class="f"><label class="fl" for="topic">Topik video</label><input id="topic" class="inp" placeholder="contoh: disiplin pagi"><p class="mini">Satu-dua kata cukup.</p></div>
 <div class="f"><span class="fl">Durasi video</span><div class="chips" id="durs"><button class="chip" data-v="30">30 dtk</button><button class="chip" data-v="50">50 dtk</button><button class="chip on" data-v="60">1 mnt</button><button class="chip" data-v="0">Custom</button></div><input id="vcus" class="inp" type="number" min="15" max="180" placeholder="durasi dalam detik (15-180)" aria-label="Durasi custom" style="margin-top:8px" hidden><input id="vdur" type="hidden" value="60"></div>
 <div class="set">${row("Gaya video", "Cara Kerja ›")}${row("Karakter", "Tanpa karakter")}${row("Warna brand", "Ikut gaya")}
@@ -811,6 +816,13 @@ ${row("Transisi", "Otomatis")}
 <textarea id="in1" style="height:90px" placeholder="Tempel jawaban Claude di sini" aria-label="Jawaban Claude langkah 1"></textarea>
 <button class="pri" id="ok1" style="margin-top:8px">Proses jawaban</button><div id="out1" class="stat" style="margin-top:8px" role="status"></div></div>`;
 }
+const JENIS = {
+  otomatis: { ic: "✨", t: "Otomatis", d: "ide campuran: motivasi, cerita, fakta & tips", p: "campuran (motivasi, cerita, fakta & tips)" },
+  motivasi: { ic: "🔥", t: "Motivasi", d: "pesan penyemangat, ngena & relatable", p: "motivasi" },
+  cerita: { ic: "📖", t: "Cerita / kisah", d: "kisah pendek: tokoh, konflik, twist, pesan", p: "cerita / kisah" },
+  fakta: { ic: "💡", t: "Fakta & edukasi", d: "fakta unik & penjelasan yang bikin penasaran", p: "fakta & edukasi" },
+  tips: { ic: "✅", t: "Tips praktis", d: "langkah konkret yang bisa langsung dicoba", p: "tips praktis" }
+};
 const fmtDur = (d) => (d % 60 === 0 ? d / 60 + " mnt" : d + " dtk");
 function updProj() {
   const t = $("topic").value.trim() || "Proyek baru", secs = S.scenes.reduce((a, x) => a + x.seconds, 0);
@@ -824,7 +836,17 @@ function renderIdeas() {
   $("bTitle").textContent = "Pilih satu ide di bawah"; $("bSub").textContent = "Klik kartunya. Belum cocok? Kirim lagi ke AI untuk ide baru.";
   el.querySelectorAll(".idea").forEach((b) => (b.onclick = () => { S.idea = S.ideas[+b.dataset.i]; el.querySelectorAll(".idea").forEach((x) => x.classList.toggle("on", x === b)); $("idea2").textContent = "Ide terpilih: " + S.idea.title; unlock(2); updProj(); showStep(2); }));
 }
+function renderJenis() {
+  const c = JENIS[S.jenis];
+  $("jbtn").innerHTML = `<span>${c.ic} <b>${c.t}</b></span><span class="stat">▾</span>`;
+  $("jlist").innerHTML = Object.entries(JENIS).map(([k, x]) => `<button type="button" role="option" class="opt ${k === S.jenis ? "on" : ""}" aria-selected="${k === S.jenis}" data-k="${k}"><span><b>${x.ic} ${x.t}</b><small>${x.d}</small></span>${k === S.jenis ? "<i>✓</i>" : ""}</button>`).join("");
+  $("jlist").querySelectorAll(".opt").forEach((b) => (b.onclick = () => { S.jenis = b.dataset.k; renderJenis(); toggleJenis(false); }));
+}
+function toggleJenis(open) { $("jlist").hidden = !open; $("jbtn").setAttribute("aria-expanded", open); }
 function wireIde() {
+  renderJenis(); $("jbtn").onclick = () => toggleJenis($("jlist").hidden);
+  document.addEventListener("click", (e) => { if (!e.target.closest(".dd")) toggleJenis(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") toggleJenis(false); });
   document.querySelectorAll("#durs .chip").forEach((b) => (b.onclick = () => { document.querySelectorAll("#durs .chip").forEach((x) => x.classList.toggle("on", x === b)); const v = +b.dataset.v; $("vcus").hidden = v !== 0; if (v) $("vdur").value = v; else $("vcus").focus(); }));
   $("vcus").oninput = () => { $("vdur").value = Math.min(180, Math.max(15, +$("vcus").value || 60)); };
   $("topic").addEventListener("input", updProj);

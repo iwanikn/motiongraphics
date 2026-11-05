@@ -590,6 +590,17 @@ function createS(ctx, t, dur, sfxLog, theme) {
       ctx.save();
       ctx.translate(x, y); if (o.rotate) ctx.rotate(o.rotate); ctx.scale(sc, sc);
       textBase(str, 0, 0, { ...o, size: o.size ?? 40 });
+      if (o.frame) {
+        const fs = o.size ?? 40, w = ctx.measureText(str).width + fs * 0.9, hh = fs * 1.35, al = o.align ?? "center", x0 = al === "left" ? -fs * 0.45 : al === "right" ? -w + fs * 0.45 : -w / 2, fr = o.frame;
+        ctx.save(); ctx.fillStyle = o.frameColor ?? "#ff7a45"; ctx.beginPath();
+        if (fr === "burst") { for (let i = 0; i < 28; i++) { const a = (i / 28) * Math.PI * 2, rr = i % 2 ? 0.62 : 0.8; const px = x0 + w / 2 + Math.cos(a) * w * rr, py = Math.sin(a) * hh * (i % 2 ? 0.85 : 1.15); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } ctx.closePath(); }
+        else if (fr === "circle") ctx.ellipse(x0 + w / 2, 0, Math.max(w, hh) / 2, Math.max(w, hh) / 2, 0, 0, 7);
+        else ctx.roundRect(x0, -hh / 2, w, hh, fr === "pill" ? hh / 2 : hh * 0.22);
+        ctx.fill();
+        if (fr === "bubble") { ctx.beginPath(); ctx.moveTo(x0 + w * 0.2, hh / 2 - 2); ctx.lineTo(x0 + w * 0.12, hh / 2 + fs * 0.4); ctx.lineTo(x0 + w * 0.34, hh / 2 - 2); ctx.fill(); }
+        if (fr === "ribbon") { ctx.beginPath(); ctx.moveTo(x0, -hh / 2 + 6); ctx.lineTo(x0 - fs * 0.35, 0); ctx.lineTo(x0, hh / 2 - 6); ctx.fill(); ctx.beginPath(); ctx.moveTo(x0 + w, -hh / 2 + 6); ctx.lineTo(x0 + w + fs * 0.35, 0); ctx.lineTo(x0 + w, hh / 2 - 6); ctx.fill(); }
+        ctx.restore(); textBase(str, 0, 0, { ...o, size: fs });
+      }
       const depth = o.depth ?? 0;
       if (depth > 0) { ctx.fillStyle = o.side ?? "#000"; for (let i = depth; i >= 1; i--) ctx.fillText(str, i * 0.5, i * 0.8); }
       ctx.fillStyle = o.color ?? "#000"; ctx.fillText(str, 0, 0);
@@ -642,6 +653,41 @@ function createS(ctx, t, dur, sfxLog, theme) {
           s.text3d(it.w, cx, top + li * lh + (mode === "slide" ? 0 : (1 - k) * size * 0.6), { size, depth: 0, align: "left", color: hi ? (o.accentColor ?? "#ff7a45") : (o.color ?? INKC), alpha: (o.alpha ?? 1) * CL(k * 2), draw: mode === "pop" ? k : 1, rotate: 0 }); }
         cx += it.wd + sp; }); });
   };
+  const LH = [-0.4, -0.6, -0.7];
+  const shc = (col, k) => { const m = /^#([0-9a-f]{6})$/i.exec(col || ""); if (!m) return col; const n = parseInt(m[1], 16); return "rgb(" + [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.min(255, Math.round(v * k))).join(",") + ")"; };
+  const rot3 = (p, o) => { let [x, y, z] = p, c = Math.cos(o.rz || 0), q = Math.sin(o.rz || 0); [x, y] = [x * c - y * q, x * q + y * c]; c = Math.cos(o.ry || 0); q = Math.sin(o.ry || 0); [x, z] = [x * c + z * q, -x * q + z * c]; c = Math.cos(o.rx || 0); q = Math.sin(o.rx || 0); [y, z] = [y * c - z * q, y * q + z * c]; return [x, y, z]; };
+  const pj = (p, o, cx, cy) => { const sc = o.scale ?? 1, f = o.ortho ? 1 : 900 / (900 + p[2] * sc); return [cx + p[0] * sc * f, cy + p[1] * sc * f]; };
+  const solid = (cx, cy, verts, faces, o) => {
+    const dr = o.draw ?? 1; if (dr <= 0) return;
+    const oo = { rx: -0.3, ry: -0.4, ...o, scale: (o.scale ?? 1) * dr }, R = verts.map((v) => rot3(v, oo)), fl = [];
+    faces.forEach(([idx, n]) => { const rn = rot3(n, oo); if (rn[2] > -0.001) return; fl.push({ z: idx.reduce((a, i) => a + R[i][2], 0) / idx.length, pts: idx.map((i) => pj(R[i], oo, cx, cy)), k: 0.62 + 0.45 * Math.max(0, -(rn[0] * LH[0] + rn[1] * LH[1] + rn[2] * LH[2])) }); });
+    fl.sort((a, b) => b.z - a.z).forEach((f) => s.shape(f.pts, { fill: shc(o.fill ?? "#c3ccd8", f.k), stroke: o.edges === "none" ? "none" : (o.stroke ?? INKC), width: o.edges === "soft" ? 1.2 : 2.5, alpha: o.alpha }));
+  };
+  const BOXF = [[[0, 1, 3, 2], [0, 0, -1]], [[4, 5, 7, 6], [0, 0, 1]], [[0, 1, 5, 4], [0, -1, 0]], [[2, 3, 7, 6], [0, 1, 0]], [[0, 2, 6, 4], [-1, 0, 0]], [[1, 3, 7, 5], [1, 0, 0]]];
+  const bv = (a, b, c) => Array.from({ length: 8 }, (_, i) => [i & 1 ? a : -a, i & 2 ? b : -b, i & 4 ? c : -c]);
+  s.box = (x, y, w, h, d, o = {}) => solid(x, y, bv(w / 2, h / 2, d / 2), BOXF, o);
+  s.cube = (x, y, z, o = {}) => s.box(x, y, z, z, z, o);
+  s.sphere = (x, y, r, o = {}) => withAlpha(o.alpha, () => { const rr = r * (o.scale ?? 1) * (o.draw ?? 1), f = o.fill ?? "#4dabf7", g = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.4, rr * 0.1, x, y, Math.max(1, rr)); g.addColorStop(0, shc(f, 1.25)); g.addColorStop(1, shc(f, 0.7)); ctx.beginPath(); ctx.arc(x, y, Math.max(0, rr), 0, 7); ctx.fillStyle = g; ctx.fill(); if (o.edges !== "none") { ctx.strokeStyle = o.stroke ?? INKC; ctx.lineWidth = o.edges === "soft" ? 1.2 : 2.5; ctx.stroke(); } });
+  const edge = (o) => { if (o.edges !== "none") { ctx.strokeStyle = o.stroke ?? INKC; ctx.lineWidth = o.edges === "soft" ? 1.2 : 2.5; ctx.stroke(); } };
+  s.cylinder = (x, y, r, h, o = {}) => withAlpha(o.alpha, () => { const sc = (o.scale ?? 1) * (o.draw ?? 1), R = r * sc, H = h * sc, ry = R * 0.32, f = o.fill ?? "#ff7a45"; ctx.beginPath(); ctx.moveTo(x - R, y - H / 2); ctx.lineTo(x - R, y + H / 2); ctx.ellipse(x, y + H / 2, R, ry, 0, Math.PI, 0, true); ctx.lineTo(x + R, y - H / 2); ctx.closePath(); ctx.fillStyle = shc(f, 0.8); ctx.fill(); edge(o); ctx.beginPath(); ctx.ellipse(x, y - H / 2, R, ry, 0, 0, 7); ctx.fillStyle = shc(f, 1.15); ctx.fill(); edge(o); });
+  s.cone = (x, y, r, h, o = {}) => withAlpha(o.alpha, () => { const sc = (o.scale ?? 1) * (o.draw ?? 1), R = r * sc, H = h * sc, ry = R * 0.32, f = o.fill ?? "#f06595"; ctx.beginPath(); ctx.moveTo(x, y - H / 2); ctx.lineTo(x - R, y + H / 2); ctx.ellipse(x, y + H / 2, R, ry, 0, Math.PI, 0, true); ctx.closePath(); ctx.fillStyle = shc(f, 0.9); ctx.fill(); edge(o); });
+  s.extrude = (x, y, pts, depth, o = {}) => withAlpha(o.alpha, () => { const sc = (o.scale ?? 1) * (o.draw ?? 1), f = o.fill ?? "#fcc419", rz = o.rz || 0, c = Math.cos(rz), q = Math.sin(rz); for (let i = depth; i >= 0; i -= 2) { ctx.beginPath(); pts.forEach((p, k) => { const px = (p[0] * c - p[1] * q) * sc + x + i * 0.45, py = (p[0] * q + p[1] * c) * sc + y + i * 0.7; k ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }); ctx.closePath(); ctx.fillStyle = i === 0 ? f : shc(f, 0.68); ctx.fill(); if (i === 0 || i === depth) edge(o); } });
+  s.shapes = {
+    star: (n = 5, r1 = 100, r2 = 45) => Array.from({ length: n * 2 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / n, r = i % 2 ? r2 : r1; return [Math.cos(a) * r, Math.sin(a) * r]; }),
+    heart: (z = 100) => Array.from({ length: 40 }, (_, i) => { const t = (i / 40) * Math.PI * 2; return [(z / 34) * 16 * Math.pow(Math.sin(t), 3), (-z / 34) * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t))]; }),
+    arrow: (l = 200, w = 60) => [[-l / 2, -w / 4], [l / 6, -w / 4], [l / 6, -w / 2], [l / 2, 0], [l / 6, w / 2], [l / 6, w / 4], [-l / 2, w / 4]],
+    bolt: (z = 120) => [[0.1, -1], [-0.55, 0.1], [-0.05, 0.1], [-0.2, 1], [0.6, -0.2], [0.08, -0.2], [0.35, -1]].map(([a, b]) => [a * z * 0.5, b * z * 0.5]),
+    roundRect: (w, h, r = 20) => { const o = []; [[w / 2 - r, h / 2 - r, 0], [-w / 2 + r, h / 2 - r, 1], [-w / 2 + r, -h / 2 + r, 2], [w / 2 - r, -h / 2 + r, 3]].forEach(([cx, cy, k]) => { for (let i = 0; i <= 6; i++) { const a = (k + i / 6) * Math.PI / 2; o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } }); return o; },
+    polygon: (n = 6, r = 100) => Array.from({ length: n }, (_, i) => { const a = -Math.PI / 2 + (i / n) * Math.PI * 2; return [Math.cos(a) * r, Math.sin(a) * r]; })
+  };
+  s.iso = (i, j, z = 0) => [360 + (i - j) * 50, 600 + (i + j) * 28 - z];
+  s.isoBox = (i, j, base, w, h, d, o = {}) => withAlpha(o.alpha, () => {
+    const k = o.draw ?? 1; if (k <= 0) return; const P = (a, b, z) => s.iso(a, b, z), i1 = i + w * k, j1 = j + d * k, z0 = base, z1 = base + h * k, f = o.fill ?? "#4dabf7", st = o.edges === "none" ? "none" : (o.stroke ?? INKC);
+    s.shape([P(i, j1, z1), P(i1, j1, z1), P(i1, j1, z0), P(i, j1, z0)], { fill: shc(f, 0.78), stroke: st, width: 2 });
+    s.shape([P(i1, j, z1), P(i1, j1, z1), P(i1, j1, z0), P(i1, j, z0)], { fill: shc(f, 0.6), stroke: st, width: 2 });
+    s.shape([P(i, j, z1), P(i1, j, z1), P(i1, j1, z1), P(i, j1, z1)], { fill: shc(f, 1.12), stroke: st, width: 2 });
+  });
+  s.isoCylinder = (i, j, base, r, h, o = {}) => { const [x, y] = s.iso(i, j, base + h / 2); s.cylinder(x, y, r * 50, h, o); };
   return s;
 }
 
@@ -697,9 +743,9 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
   if (!scenes.length) { ctx.clearRect(0, 0, 720, 1280); return; }
   const [i, lt] = locate(T), sc = scenes[i];
-  const bg = S.meta?.background?.[sc.theme];
+  const bg = S.meta?.background?.[sc.theme] || styleBg(sc.theme);
   if (bg?.top && bg?.bottom) { const g = ctx.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, bg.top); g.addColorStop(1, bg.bottom); ctx.fillStyle = g; } else ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7";
-  ctx.fillRect(0, 0, 720, 1280);
+  ctx.fillRect(0, 0, 720, 1280); drawPattern(ctx, bg?.pattern, sc.dark || curStyle().p?.dark);
   let msg = "";
   if (sc.fn instanceof Error) msg = "Scene " + (i + 1) + ": " + sc.fn.message;
   else {
@@ -783,7 +829,7 @@ $("file").onchange = async () => {
 }
 
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
-const S = { jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
+const S = { gaya: "Cara Kerja", jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function readJson(txt) {
   const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
@@ -799,16 +845,16 @@ const CAT = (i) => S.scenes[i - 1];
 const P = {
   1: () => { const t = $("topic").value.trim(); if (!t) throw new Error("Isi topik dulu");
     const dur = +$("vdur").value, v = { TOPIC: t, JENIS: JENIS[S.jenis].p, DURLABEL: fmtDur(dur) };
-    return $("tpl-ide").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
+    return tplFor("tpl-ide").replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   2: () => { if (!S.idea) throw new Error("Pilih ide di langkah 1 dulu");
     const dur = +$("vdur").value, n = Math.max(2, Math.round(dur / 7.5)), words = Math.round(dur * 2.35);
     const v = { JENIS: JENIS[S.jenis].p, TITLE: S.idea.title, HOOK: S.idea.hook, PESAN: S.idea.message ?? S.idea.summary ?? "", VISUAL: S.idea.visual ?? "", N: n, DURLABEL: fmtDur(dur), WORDS: words, PERSCENE: Math.round(words / n), AVG: +(dur / n).toFixed(1) };
-    return $("tpl-narasi").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
+    return tplFor("tpl-narasi").replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
     const g = +$("grp").value, list = S.scenes.map((sc, i) => [i + 1, sc]).slice(g * 4, g * 4 + 4);
     const blocks = list.map(([i, sc]) => `### SCENE ${i}\n- Teks narasi: "${sc.narration}"\n- Visual: ${sc.camera}\n- Tema latar: ${sc.theme}\n- Durasi: ${sc.seconds.toFixed(2)} detik (gerakan harus mengisi seluruh durasi ini)\n- Waktu kata diucapkan (detik dari awal scene): ${wordTimes(sc.narration, sc.seconds)}`).join("\n\n");
-    const v = { K: list.length, SCENES: blocks, CONTOH: $("ex3").value.trim(), FORMAT: list.map(([i]) => `// ===== SCENE ${i} =====\n// ...kode scene ini...`).join("\n\n") };
-    return $("tpl-anim").textContent.trim().replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]).replace(/\n{3,}/g, "\n\n"); }
+    const v = { K: list.length, SCENES: blocks, CONTOH: S.gaya === "Cara Kerja" ? $("ex3").value.trim() : "", FORMAT: list.map(([i]) => `// ===== SCENE ${i} =====\n// ...kode scene ini...`).join("\n\n") };
+    return tplFor("tpl-anim").replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]).replace(/\n{3,}/g, "\n\n"); }
 };
 function wordTimes(text, dur) {
   const w = text.trim().split(/\s+/), start = 0.2, end = Math.max(start + 1, dur - 0.6), wt = w.map((x) => x.length + 2), tot = wt.reduce((a, b) => a + b, 0);
@@ -883,6 +929,91 @@ const GAYA = [
   { n: "Sketsa Papan", c: ["Gambar Tangan"], g: ["#fbfbf7", "#dcdcd0"], e: "✏️" },
   { n: "Arsip Kuno", c: ["Tenang & Lembut", "Gambar Tangan"], g: ["#e6d3a8", "#a98b55"], e: "📜" }
 ];
+/* ===== MESIN GAYA VIDEO ===== */
+const GX = {
+  "Kuas Tinta": { d: "ilustrasi tinta sumi-e di kertas krem: sapuan kuas tebal-tipis, lingkaran enso, satu aksen merah", b: ["#f3efe6", "#e6dfd0", "grain"], p: { ink: "#1c2433", a: "#c0392b", c2: "#1c2433", o: "ink" },
+    a: "Ilustrasi tinta sumi-e di atas kertas krem. Objek digambar seperti disapu kuas: s.curve dan s.polyline dengan draw dan pen:true, garis tebal-tipis (width 6-16), isian polos tipis atau tanpa isian, banyak ruang kosong. Warna hanya tinta #1c2433, kertas #f3efe6, dan SATU aksen merah #c0392b. Ada lingkaran enso (s.arc tebal), percikan tinta (s.circle kecil), dan stempel merah kecil. Gerak tenang dan menyapu, tanpa 3D. Teks pakai s.words mode fade. Tema paper dominan." },
+  "Retro 80-an": { d: "synthwave 80-an: matahari bergaris, grid perspektif, neon pink dan cyan", b: ["#2a0f5c", "#0d0620", "neonwave"], p: { ink: "#ffffff", a: "#ff3d9a", c2: "#2de2e6", o: "sun", dark: 1 },
+    a: "Estetika synthwave 80-an. Matahari bulat bergaris horizontal di cakrawala, grid perspektif neon di lantai (s.line yang menyempit ke titik hilang), siluet palem atau mobil, bintang. Palet pink #ff3d9a, cyan #2de2e6, ungu #5b2a9a, kuning #ffd43b. Glow lewat ctx.shadowBlur di dalam save/restore. Teks tebal miring dengan text3d depth 6 dan side warna kontras. Gerak: grid meluncur ke arah kamera, matahari naik dengan spring, kilatan neon. Tema night dominan, selingi dusk." },
+  "Blueprint": { d: "gambar teknik biru: garis putih tipis, dimensi, anotasi monospace", b: ["#1d4f91", "#143a6e", "deepgrid"], p: { ink: "#e8f1ff", a: "#ffd43b", c2: "#8fc1ff", o: "lines", dark: 1 },
+    a: "Gambar teknik cetak biru. Latar biru #1d4f91 dengan grid halus. Semua objek berupa line art putih tipis (width 2-3, tanpa isian) yang digambar progresif dengan draw: garis konstruksi putus-putus (s.dash), garis dimensi dengan panah dan angka ukuran, lingkaran sumbu, anotasi kecil bergaya monospace lewat s.tag. Aksen kuning #ffd43b hanya untuk bagian yang dibahas. Gerak presisi dan bertahap seperti sedang digambar, tanpa pantulan. Tema night atau dusk." },
+  "Papan Kapur": { d: "papan tulis hijau gelap dengan coretan kapur putih dan kuning", b: ["#34413a", "#232c27", "chalk"], p: { ink: "#f1f5ee", a: "#ffd166", c2: "#ef8fa0", o: "lines", dark: 1 },
+    a: "Papan tulis kapur. Latar hijau-abu gelap #34413a. Gambar dengan garis kapur putih #f1f5ee, kuning #ffd166, dan merah muda #ef8fa0: wobble 1.5, width 4-6, isian arsir tipis, draw progresif dengan pen:true. Ada debu kapur (titik kecil alpha rendah), tanda panah tangan, kotak dan lingkaran tidak sempurna, coretan tebal untuk penekanan. Teks tulisan tangan lewat s.text. Gerak seperti sedang ditulis guru. Tema night." },
+  "Isometrik Cerah": { d: "diorama isometrik cerah: balok dan silinder pastel dengan bayangan lembut", b: ["#fff1c9", "#ffd6b5", "softgrid"], p: { ink: "#2b2a4c", a: "#ff6b6b", c2: "#4dabf7", o: "iso" },
+    a: "Diorama isometrik cerah dan ceria. Bangun semuanya dari s.isoBox dan s.isoCylinder di grid iso, tumpuk bertingkat, warna pastel jenuh (#ff6b6b, #4dabf7, #ffd43b, #51cf66) dengan outline tinta #2b2a4c. Objek muncul satu per satu dengan s.stagger dan spring bouncy, naik dari bawah. Tambahkan s.shadow, sparkle kecil, dan label s.tag. Kamera tetap, benda berputar halus lewat perubahan posisi grid. Tema paper." },
+  "UI Website": { d: "antarmuka web bersih: jendela browser, kartu, tombol, kursor klik", b: ["#f6f8fd", "#e3eaf7", "none"], p: { ink: "#1c2433", a: "#3b5bdb", c2: "#12b886", o: "card" },
+    a: "Antarmuka website modern. Rakit dari s.card: jendela browser dengan tiga titik di bilah atas, kartu, kolom input, tombol berwarna biru #3b5bdb, daftar centang hijau #12b886. Kursor (segitiga kecil) bergerak ke tombol lalu menekan dengan efek skala. Elemen masuk dengan s.stagger preset snappy dari bawah, 40-120px. Bayangan lembut, sudut membulat 20-28, banyak ruang putih. Teks pakai s.words. Tema paper." },
+  "Infografis Pop": { d: "infografis pop: bentuk flat tebal, angka raksasa, batang dan lingkaran saturasi tinggi", b: ["#19b394", "#0f7f86", "dots"], p: { ink: "#ffffff", a: "#ffd43b", c2: "#ff6b9a", o: "bars", dark: 1 },
+    a: "Infografis pop berwarna jenuh. Bentuk flat tebal tanpa gradasi: batang, donat, lingkaran, ikon sederhana dari bentuk dasar, outline tebal gelap #0d3b3f width 4. Palet teal #19b394, kuning #ffd43b, pink #ff6b9a, putih. Angka raksasa lewat text3d size 120 dengan frame burst atau pill untuk kata terpenting. Data tumbuh dengan s.stagger bouncy, angka menghitung naik. Gerak membal dan berenergi. Tema paper atau dusk." },
+  "Tenang Minimalis": { d: "minimalis tenang: satu bentuk lembut, warna tanah, ruang kosong luas", b: ["#f6efe6", "#eadfce", "none"], p: { ink: "#4a4036", a: "#c98b5e", c2: "#a7b8a0", o: "orb" },
+    a: "Minimalis yang tenang. Satu bentuk utama lembut (lingkaran, kerikil, daun sederhana) di tengah, banyak ruang kosong. Palet tanah: krem #f6efe6, terakota #c98b5e, hijau sage #a7b8a0, teks #4a4036. Tanpa outline (stroke none), bayangan sangat tipis. Gerak lambat dengan s.spring preset smooth, napas halus via s.wave amplitudo kecil. Teks sedikit dan besar dengan s.words mode fade. Tema paper dan dusk." },
+  "Kinetik HUD": { d: "HUD futuristik gelap: cincin, garis tipis cyan, angka mono yang menghitung", b: ["#161a22", "#0a0c11", "hud"], p: { ink: "#dff6ff", a: "#27e1ff", c2: "#ff7a45", o: "ring", dark: 1 },
+    a: "Antarmuka HUD futuristik. Latar gelap #161a22 dengan grid tipis. Elemen: cincin konsentris (s.arc, s.circle stroke cyan #27e1ff width 2-4), tanda ukur melingkar, garis pindai bergerak, sudut siku di tepi, angka monospace besar yang menghitung naik lewat text3d. Aksen oranye #ff7a45 hanya untuk peringatan. Tanpa isian padat, semua garis tipis. Gerak presisi, berputar dan berdenyut, pembacaan data beruntun. Tema night." },
+  "Neon Game": { d: "game neon: blok piksel, skor, platform bercahaya", b: ["#17123f", "#0a0a1f", "stars"], p: { ink: "#ffffff", a: "#39ff88", c2: "#ff3df2", o: "pixels", dark: 1 },
+    a: "Game arkade bercahaya. Latar navy gelap #17123f dengan bintang. Platform dan karakter dari blok persegi (s.rect tajam), warna neon hijau #39ff88, magenta #ff3df2, cyan #2de2e6 dengan glow ctx.shadowBlur di save/restore. Elemen HUD: skor menghitung, nyawa, bilah energi, tulisan STAGE dengan text3d depth 6. Gerak lompat dengan spring bouncy, koin berputar, kilatan saat skor naik. Tanpa wajah. Tema night." },
+  "Pitch Minimal": { d: "pitch deck minimal: tipografi besar, satu aksen oranye, data tipis", b: ["#f6f5f2", "#e7e9f6", "none"], p: { ink: "#15171c", a: "#ff6a2b", c2: "#15171c", o: "bars" },
+    a: "Pitch deck minimal dan percaya diri. Tipografi raksasa jadi pusat: s.words size 70-100, satu kata kunci diberi warna oranye #ff6a2b. Visual pendukung sangat sedikit: satu garis, satu batang data, satu lingkaran. Latar putih gading, teks #15171c, tanpa dekorasi. Gerak: kata naik dari balik garis (mode rise) dengan jeda 0.07, angka menghitung. Banyak ruang kosong. Tema paper." },
+  "Diorama Data": { d: "diorama data isometrik: bangunan dan pohon mini yang tumbuh sebagai grafik", b: ["#cfe9d4", "#9fcfb0", "softgrid"], p: { ink: "#1f3b2d", a: "#2f9e63", c2: "#f2a65a", o: "iso" },
+    a: "Dunia mini isometrik yang menyajikan data. Pakai s.isoBox sebagai gedung atau batang data dengan tinggi sesuai nilai, s.isoCylinder sebagai pohon atau tangki, alas hijau lembut. Palet hijau #2f9e63, krem, oranye #f2a65a, outline #1f3b2d. Tinggi objek tumbuh lewat draw dengan s.stagger. Label angka kecil di atas tiap objek lewat s.tag. Kamera tetap, sorot satu objek dengan membesarkannya dan meredupkan yang lain. Tema paper." },
+  "Kaca Aurora": { d: "kaca aurora: panel buram tembus pandang di atas cahaya ungu dan hijau", b: ["#3b3470", "#14142b", "mist"], p: { ink: "#f4f1ff", a: "#7cf5d0", c2: "#b78bff", o: "card", dark: 1 },
+    a: "Glassmorphism di atas aurora. Latar gradasi ungu gelap dengan lingkaran cahaya besar blur (s.circle alpha rendah dengan shadowBlur besar) hijau #7cf5d0 dan ungu #b78bff. Panel kaca: s.card fill putih alpha 0.12 dengan stroke putih alpha 0.35, sudut membulat 28. Teks putih lembut. Gerak melayang pelan, panel parallax berlapis, cahaya bergeser dengan s.wave. Tema night dan dusk." },
+  "Layar Pixel": { d: "pixel art 8-bit: layar LCD hijau, blok kotak, UI quest", b: ["#b7d94a", "#8fb22a", "dither"], p: { ink: "#1f2a0e", a: "#2f4a0c", c2: "#d6f27a", o: "pixels" },
+    a: "Pixel art 8-bit di layar LCD hijau. Semua digambar dari kotak persegi tajam berukuran kelipatan 12px (s.rect tanpa radius), hanya empat nada hijau: #d6f27a, #b7d94a, #6f9a1f, #2f4a0c. Elemen UI: kotak dialog QUEST, bilah nyawa, ikon piksel, kursor berkedip. Teks tebal tanpa anti-alias terasa, huruf kapital. Gerak bergantian per langkah (kuantisasi dengan Math.floor pada s.t), bukan halus. Tanpa wajah. Tema paper." },
+  "Kursor Kolab": { d: "kolaborasi real-time: banyak kursor berwarna bernama menggeser kartu dan komentar", b: ["#f1f4ff", "#d7dffc", "softgrid"], p: { ink: "#1c2433", a: "#6c5ce7", c2: "#ff7a45", o: "cursor" },
+    a: "Ruang kerja kolaboratif. Papan terang dengan kartu dokumen (s.card), komentar, dan sticky note. Beberapa kursor segitiga berwarna (#6c5ce7, #ff7a45, #12b886) bergerak mulus antar kartu dengan s.spring, masing-masing dengan label nama lewat s.tag. Kartu bergeser, teks diketik, centang muncul. Kursor menyeret elemen ke tempatnya. Tanpa wajah atau avatar manusia. Tema paper." },
+  "Monochrome Film": { d: "film hitam putih: butiran film, vignette, gerakan kamera lambat", b: ["#d9d9d9", "#6a6a6a", "film"], p: { ink: "#101010", a: "#ffffff", c2: "#2a2a2a", o: "orb" },
+    a: "Film hitam putih klasik. Hanya nada abu: #f2f2f2, #b9b9b9, #6a6a6a, #1a1a1a. Objek utama besar dengan pencahayaan dramatis (satu sisi terang, satu sisi gelap) dan bayangan panjang. Tambahkan butiran film (titik kecil acak deterministik lewat s.rand), vignette gelap di tepi (ctx radial gradient), garis goresan vertikal tipis. Gerak lambat sinematik: dorong pelan, tahan lama. Teks putih bergaya serif sederhana. Tema dusk dan night." },
+  "Siluet Senja": { d: "siluet senja: langit gradasi oranye ke ungu, bentuk hitam di depan matahari", b: ["#f7b267", "#5b2a52", "sunset"], p: { ink: "#fff6e8", a: "#ffd166", c2: "#1a0f1f", o: "sun", dark: 1 },
+    a: "Siluet di langit senja. Langit gradasi oranye #f7b267 ke ungu #5b2a52, matahari besar bulat (#ffd166) rendah di cakrawala. Semua objek utama berupa siluet hitam-ungu #1a0f1f (s.shape fill penuh, tanpa outline): bukit berlapis, pohon, benda yang dibahas. Lapisan belakang lebih terang berkabut. Gerak: matahari turun pelan, lapisan bergeser parallax, burung kecil melintas. Teks krem hangat. Tema dusk dan night." },
+  "Sketsa Papan": { d: "sketsa spidol di whiteboard: kotak, panah, dan coretan tangan", b: ["#fbfbf7", "#ecece2", "none"], p: { ink: "#1c2433", a: "#e03131", c2: "#3b5bdb", o: "lines" },
+    a: "Sketsa spidol di whiteboard putih. Garis spidol hitam #1c2433, biru #3b5bdb, merah #e03131 untuk penekanan: wobble 1.2, width 4-6, tanpa isian atau arsiran tipis. Kotak, panah melengkung (s.curve), lingkaran tidak sempurna, garis bawah dan tanda seru. Semua digambar progresif dengan draw dan pen:true seperti sedang ditulis. Teks tulisan tangan lewat s.text. Gerak bertahap, satu coretan per momen. Tema paper." },
+  "Arsip Kuno": { d: "arsip kuno: kertas menguning, stempel, tulisan tinta, foto dan catatan tempel", b: ["#ead8ae", "#c9ae7a", "grain"], p: { ink: "#3b2a14", a: "#a4262c", c2: "#5b4a2e", o: "card" },
+    a: "Arsip tua di atas kertas menguning #ead8ae. Kartu kertas miring kecil (s.card dengan rotate -0.08 s.d. 0.08), pita perekat, pin, stempel merah #a4262c yang mendarat dengan s.spring heavy dan sfx stamp. Tulisan tinta coklat #3b2a14, garis tegak, coretan tangan, tepi kertas sobek dari s.shape bergerigi. Warna sepia saja. Gerak: dokumen ditumpuk, ditarik keluar, distempel. Tanpa wajah. Tema paper dan dusk." }
+};
+GAYA.forEach((x) => Object.assign(x, GX[x.n] || {}, { ok: 1 }));
+const curStyle = () => GAYA.find((x) => x.n === S.gaya) || GAYA[0];
+function mixc(a, b, k) { const f = (h, i) => parseInt(h.slice(i, i + 2), 16); return "#" + [1, 3, 5].map((i) => Math.round(f(a, i) + (f(b, i) - f(a, i)) * k).toString(16).padStart(2, "0")).join(""); }
+function styleBgOf(st, theme) {
+  const [t, b, pat] = st.b, dk = st.p.dark, w = theme === "paper" ? (dk ? 0 : 0.45) : 0, bl = theme === "night" ? (dk ? 0.45 : 0.78) : 0, f = (c) => mixc(mixc(c, "#ffffff", w), "#05070d", bl);
+  return { top: f(t), bottom: f(b), pattern: pat };
+}
+const styleBg = (theme) => (curStyle().b ? styleBgOf(curStyle(), theme) : null);
+function drawPattern(c, pat, dark) {
+  if (!pat || pat === "none") return;
+  c.save(); c.strokeStyle = c.fillStyle = dark ? "rgba(255,255,255,0.08)" : "rgba(28,36,51,0.07)"; c.lineWidth = 2;
+  if (/grid|plate|hud/i.test(pat)) { const g = /deep|big|hud/i.test(pat) ? 90 : 60; for (let x = 0; x <= 720; x += g) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 1280); c.stroke(); } for (let y = 0; y <= 1280; y += g) { c.beginPath(); c.moveTo(0, y); c.lineTo(720, y); c.stroke(); } }
+  else if (/dots|halftone|dither|grain|film|chalk/.test(pat)) for (let i = 0; i < 260; i++) { c.beginPath(); c.arc((i * 137.5) % 720, (i * 91.7) % 1280, pat === "dots" ? 3 : 1.6, 0, 7); c.fill(); }
+  else if (/stars/.test(pat)) for (let i = 0; i < 70; i++) { c.beginPath(); c.arc((i * 211.3) % 720, (i * 173.9) % 1280, (i % 3) + 1, 0, 7); c.fill(); }
+  else if (/stripes|lines|slash/.test(pat)) for (let y = 0; y < 1280; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(720, y); c.stroke(); }
+  c.restore();
+}
+function paintBg(c, st, theme) { const b = styleBgOf(st, theme), g = c.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, b.top); g.addColorStop(1, b.bottom); c.fillStyle = g; c.fillRect(0, 0, 720, 1280); drawPattern(c, b.pattern, st.p.dark || theme === "night"); }
+function tplFor(id) {
+  let t = $(id).textContent.trim(); const st = curStyle(); if (!st.b) return t;
+  const n = st.n, a = id === "tpl-anim" ? st.aa || st.a : st.a;
+  return t.replace(/(Gaya (?:video|visual)): Cara Kerja \([^)]*\)\./g, (_, k) => `${k}: ${n} (${st.d}).`)
+    .replace(/gaya Cara Kerja: .*? Hasilnya harus/s, () => `gaya ${n}: ${st.d}. Hasilnya harus`)
+    .replace(/^Gaya animasi "Cara Kerja":.*$/gm, () => `Gaya animasi "${n}": ${a}`)
+    .replace('selaraskan dengan gaya "Cara Kerja"', () => `selaraskan dengan gaya "${n}"`)
+    .replace(/- "theme": "paper" = latar biru-abu terang.*$/m, () => '- "theme": "paper" = latar terang, "dusk" = latar menengah, "night" = latar gelap. Selingi agar tidak monoton.')
+    .replace(/Acuan gaya ini \(variasikan, jangan sama persis\): .*$/m, () => "Acuan gaya ini (variasikan, jangan sama persis): " + ["paper", "dusk", "night"].map((k) => { const b = styleBgOf(st, k); return `${k}: ${b.top} -> ${b.bottom}, motif ${b.pattern}`; }).join("; ") + ".");
+}
+function styleDemo(s, ctx, st) {
+  const p = st.p, ink = p.ink, t = s.t, k = s.spring(0.05, "snappy"), O = p.o, cx = 360, cy = 650, E = s.ease.inOut;
+  s.text3d(st.n, 70, 190 + (1 - k) * 40, { size: 62, depth: O === "sun" || O === "pixels" ? 6 : 0, side: p.a, color: ink, align: "left", alpha: k });
+  s.text("contoh gaya video", 72, 258, { size: 22, color: ink, align: "left", alpha: 0.7 * s.at(0.4, 0.5) });
+  if (O === "bars") for (let i = 0; i < 6; i++) { const q = s.stagger(i, 0.4, 0.1, "bouncy"), h = (140 + 110 * ((i * 37) % 5) / 4) * q; s.rect(120 + i * 84, 900 - h, 60, h, { r: 10, fill: i % 2 ? p.c2 : p.a, stroke: "none" }); }
+  else if (O === "ring") { const q = s.at(0.4, 2.2); s.circle(cx, cy, 210, { fill: "none", stroke: p.c2, width: 3 }); for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; s.line(cx + Math.cos(a) * 190, cy + Math.sin(a) * 190, cx + Math.cos(a) * (i % 3 ? 202 : 214), cy + Math.sin(a) * (i % 3 ? 202 : 214), { stroke: p.a, width: 2 }); } s.arc(cx, cy, 160, -Math.PI / 2, -Math.PI / 2 + Math.PI * 1.7 * q, { stroke: p.a, width: 14 }); s.arc(cx, cy, 120, s.t * 2, s.t * 2 + 1.6, { stroke: p.c2, width: 6 }); s.text3d(Math.round(92 * q) + "%", cx, cy, { size: 80, depth: 0, color: ink }); }
+  else if (O === "iso") [[0, 0, 1, "#ff6b6b"], [1.2, 0.4, 2, p.a], [0.3, 1.4, 1.5, "#4dabf7"]].forEach(([i, j, h, c], n) => { const q = s.stagger(n, 0.3, 0.2, "bouncy"); s.isoBox(i - 0.8, j - 0.4, 0, 1, 70 * h, 1, { fill: c, stroke: ink, draw: q }); });
+  else if (O === "card") [0, 1, 2].forEach((i) => { const q = s.stagger(i, 0.3, 0.14, "snappy"); s.group({ x: cx, y: 520 + i * 150 + s.lerp(80, 0, q), rotate: (i - 1) * 0.04, alpha: Math.min(1, q * 2) }, () => { s.card(-250, -62, 500, 124, { fill: i === 1 ? p.a : (p.dark ? "rgba(255,255,255,0.14)" : "#ffffff"), r: 26 }); s.rect(-215, -12, 250 - i * 40, 14, { r: 7, fill: i === 1 ? "#ffffff" : p.c2, stroke: "none", alpha: 0.8 }); s.rect(-215, 16, 160, 12, { r: 6, fill: i === 1 ? "#ffffff" : p.a, stroke: "none", alpha: 0.5 }); }); });
+  else if (O === "cursor") [[p.a, "Ayu"], [p.c2, "Budi"], ["#12b886", "Citra"]].forEach(([c, nm], i) => { const x = cx + Math.cos(t * 1.1 + i * 2.1) * 200, y = 640 + Math.sin(t * 0.9 + i * 2.1) * 170; s.shape([[x, y], [x + 26, y + 40], [x + 11, y + 36], [x, y + 54]].slice(0, 3), { fill: c, stroke: "#fff", width: 2 }); s.tag(nm, x + 54, y + 62, { size: 16, fill: c }); });
+  else if (O === "sun") { const q = E(s.at(0.3, 1.6)); s.circle(cx, 760 - 220 * q, 150, { fill: p.a, stroke: "none" }); for (let i = 0; i < 5; i++) s.rect(cx - 160, 700 - 220 * q + i * 22, 320, 8 + i * 2, { fill: p.dark ? p.c2 : "#fff", stroke: "none", alpha: 0.5 }); s.shape([[0, 1280], [0, 860], [180, 800], [360, 860], [540, 780], [720, 850], [720, 1280]], { fill: p.c2, stroke: "none" }); }
+  else if (O === "pixels") for (let r = 0; r < 6; r++) for (let c = 0; c < 8; c++) { const on = ((r * 7 + c * 3 + Math.floor(t * 3)) % 5) < 2; s.rect(72 + c * 72, 420 + r * 72, 60, 60, { fill: on ? p.a : p.c2, stroke: "none", alpha: on ? 1 : 0.35 }); }
+  else if (O === "ink") { s.arc(cx, cy, 190, -2.4, -2.4 + 5.4 * s.at(0.4, 2), { stroke: ink, width: 22 }); s.circle(cx + 150, cy - 160, 14 * k, { fill: p.a, stroke: "none" }); s.rect(cx + 90, cy + 180, 70, 70, { r: 6, fill: p.a, stroke: "none", alpha: s.at(2, 0.4) }); }
+  else if (O === "lines") { s.polyline([[120, 520], [600, 520], [600, 820], [120, 820], [120, 520]], { stroke: ink, width: 4, draw: s.at(0.4, 1.4) }); s.curve([[180, 700], [300, 600], [420, 760], [540, 640]], { stroke: p.a, width: 6, draw: s.at(1.3, 1.2), pen: true }); s.dash(120, 900, 600, 900, { stroke: p.c2, width: 3, alpha: s.at(2, 0.5) }); s.polyline([[540, 640], [510, 650], [530, 670]], { stroke: p.a, width: 6, draw: s.at(2.4, 0.3) }); }
+  else { const r = 150 + s.wave(0.5, 12); s.circle(cx, cy, r, { fill: p.a, stroke: "none", alpha: 0.9 * k }); s.circle(cx + 150, cy - 140, 52, { fill: p.c2, stroke: "none", alpha: 0.7 * k }); }
+}
+
 const GCATS = ["Semua", "Ceria & Energik", "Rapi & Modern", "Tenang & Lembut", "Teknologi & Data", "Gambar Tangan", "Spesial", "Buatan Sendiri"];
 const GDEMO = `const INK = "#1c2433", BLUE = "#3b5bdb", WH = "#f8fafc", HOT = "#ff7a45";
 const a = s.at(0, 0.5), b = s.at(0.15, 0.5), heat = s.at(1.6, 2.4);
@@ -901,30 +1032,34 @@ function gRender() {
   const cnt = (c) => (c === "Semua" ? GAYA.length : GAYA.filter((x) => x.c.includes(c)).length);
   $("gchips").innerHTML = GCATS.map((c) => `<button type="button" class="chip ${c === gCat ? "on" : ""}" data-c="${c}">${c}<b>${cnt(c)}</b></button>`).join("");
   $("gchips").querySelectorAll(".chip").forEach((b) => (b.onclick = () => { gCat = b.dataset.c; gRender(); }));
-  $("ggrid").innerHTML = GAYA.filter((x) => gCat === "Semua" || x.c.includes(gCat)).map((x) => `<button type="button" class="gcard ${x.n === gSel ? "on" : ""} ${x.ok ? "" : "off"}" data-n="${x.n}"><span class="gt" style="background:linear-gradient(135deg,${x.g[0]},${x.g[1]})">${x.e}</span>${x.n}${x.ok ? "" : '<i class="soon">Segera</i>'}</button>`).join("") || '<p class="mini" style="grid-column:1/-1">Belum ada gaya di kategori ini.</p>';
-  $("ggrid").querySelectorAll(".gcard").forEach((b) => (b.onclick = () => {
-    const x = GAYA.find((y) => y.n === b.dataset.n);
-    if (!x.ok) { $("gmsg").textContent = x.n + " belum tersedia. Baru Cara Kerja yang aktif."; return; }
-    gSel = gPrevName = x.n; $("gmsg").textContent = ""; $("gayaV").textContent = x.n + " ›"; gRender();
-  }));
-  $("pvn").textContent = gPrevName; $("gused").hidden = gPrevName !== gSel; $("gcnt").textContent = GAYA.length + " gaya · klik untuk melihat demonya";
+  $("ggrid").innerHTML = GAYA.filter((x) => gCat === "Semua" || x.c.includes(gCat)).map((x) => `<button type="button" class="gcard ${x.n === gPrevName ? "on" : ""} ${x.ok ? "" : "off"}" data-n="${x.n}"><span class="gt" style="background:linear-gradient(135deg,${x.g[0]},${x.g[1]})">${x.e}</span>${x.n}${x.ok ? "" : '<i class="soon">Segera</i>'}</button>`).join("") || '<p class="mini" style="grid-column:1/-1">Belum ada gaya di kategori ini.</p>';
+  $("ggrid").querySelectorAll(".gcard").forEach((b) => (b.onclick = () => { gPrevName = b.dataset.n; $("gmsg").textContent = ""; gRender(); }));
+  $("pvn").textContent = gPrevName; $("gused").hidden = gPrevName !== gSel; $("gpick").hidden = gPrevName === gSel; $("gcnt").textContent = GAYA.length + " gaya · klik untuk melihat demonya";
 }
 function gLoop(now) {
   if (!gRun) return;
-  if (!gPause) { const c = $("pvc").getContext("2d"); c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = "#eef2f7"; c.fillRect(0, 0, 720, 1280); try { gFn(createS(c, ((now - gT0) / 1000) % 5, 5, [], "paper"), c); } catch (e) {} }
+  if (!gPause) {
+    const c = $("pvc").getContext("2d"), st = GAYA.find((x) => x.n === gPrevName), ck = !st.b; c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1;
+    if (ck) { c.fillStyle = "#eef2f7"; c.fillRect(0, 0, 720, 1280); } else paintBg(c, st, "dusk");
+    try { (ck ? gFn : (s, cc) => styleDemo(s, cc, st))(createS(c, ((now - gT0) / 1000) % 5, 5, [], !ck && st.p.dark ? "night" : "paper"), c); } catch (e) {}
+  }
   requestAnimationFrame(gLoop);
 }
 function gOpen(o) {
   $("gmo").hidden = !o; gRun = o;
-  if (o) { gRender(); gFn = gFn || new Function("s", "ctx", GDEMO); gT0 = performance.now(); requestAnimationFrame(gLoop); $("gdone").focus(); } else $("gayaBtn").focus();
+  if (o) { gPrevName = gSel; gRender(); gFn = gFn || new Function("s", "ctx", GDEMO); gT0 = performance.now(); requestAnimationFrame(gLoop); $("gdone").focus(); } else $("gayaBtn").focus();
+}
+function applyGaya(name) {
+  gSel = S.gaya = name; $("gayaV").textContent = name + " ›"; $("gmsg").textContent = name + " dipakai. Prompt dan latar berikutnya mengikuti gaya ini.";
+  gRender(); if (typeof draw === "function") draw();
 }
 function wireGaya() {
   document.body.insertAdjacentHTML("beforeend", `<div class="mo" id="gmo" hidden role="dialog" aria-modal="true" aria-labelledby="gt"><div class="mbox">
 <div class="mh"><b id="gt">Pilih gaya video</b><span class="stat" id="gcnt"></span><button type="button" class="x" id="gx" aria-label="Tutup">✕</button></div>
 <div class="mb"><div class="mprev"><div class="pvw"><canvas id="pvc" width="720" height="1280"></canvas></div><div class="pvbar"><button type="button" id="pvp" aria-label="Jeda pratinjau">❚❚</button><div><small>Sedang dipratinjau</small><b id="pvn"></b></div></div></div>
 <div class="mlist"><div class="mchips" id="gchips"></div><div class="ggrid" id="ggrid"></div></div></div>
-<div class="mf"><span id="gmsg" class="stat" role="status"></span><span class="used" id="gused">✓ Dipakai</span><button type="button" class="pri" id="gdone">Selesai</button></div></div></div>`);
-  $("gayaBtn").onclick = () => gOpen(true); $("gx").onclick = $("gdone").onclick = () => gOpen(false);
+<div class="mf"><span id="gmsg" class="stat" role="status"></span><span class="used" id="gused">✓ Dipakai</span><button type="button" class="pri" id="gpick">Pakai gaya ini</button><button type="button" id="gdone">Selesai</button></div></div></div>`);
+  $("gayaBtn").onclick = () => gOpen(true); $("gpick").onclick = () => applyGaya(gPrevName); $("gx").onclick = $("gdone").onclick = () => gOpen(false);
   $("gmo").onclick = (e) => { if (e.target === $("gmo")) gOpen(false); };
   $("pvp").onclick = () => { gPause = !gPause; $("pvp").textContent = gPause ? "▶" : "❚❚"; };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("gmo").hidden) gOpen(false); });

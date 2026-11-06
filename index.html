@@ -144,7 +144,7 @@ body{background:var(--bg)}
       <progress id="prog" value="0" max="1" style="flex:1;accent-color:var(--ac)"></progress>
       <span class="time" id="pct">0%</span>
     </div>
-    <p class="hint">Video 720x1280, 30 fps. Suara narasi, efek suara, dan musik latar ikut diekspor. Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
+    <p class="hint">Video <span id="vsize">720x1280</span>, 30 fps. Suara narasi, efek suara, dan musik latar ikut diekspor. Dibuat di browsermu, jangan tutup tab saat berjalan.</p>
     <div class="card" style="margin-top:12px;padding:12px">
       <label style="display:flex;gap:8px;align-items:center;margin:0 0 8px"><input type="checkbox" id="subOn" checked> Subtitle di layar</label>
       <label style="display:flex;gap:8px;align-items:center;margin:0"><input type="checkbox" id="sfxOn" checked> Efek suara <input type="range" id="sfxVol" min="0" max="1" step="0.05" value="0.6" style="flex:1;accent-color:var(--ac)" aria-label="Volume efek suara"></label>
@@ -619,7 +619,7 @@ function createS(ctx, t, dur, sfxLog, theme) {
     sfx: (name, at, vol = 1, pitch = 1) => { sfxLog.push({ name, at, vol, pitch }); }
   };
   const dk = theme === "night";
-  s.p = dur ? CL(t / dur) : 0; s.theme = theme || "paper"; s.lerp = (a, b, k) => a + (b - a) * k;
+  s.p = dur ? CL(t / dur) : 0; s.W = VW; s.H = VH; s.theme = theme || "paper"; s.lerp = (a, b, k) => a + (b - a) * k;
   s.rand = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
   s.c = { ink: dk ? "#f1f5f9" : "#1c2433", paper: "#f4efe3", red: "#e03131", pink: "#f06595", orange: "#ff7a45", yellow: "#fcc419", green: "#37b24d", teal: "#12b886", blue: "#3b5bdb", navy: "#1e2a5a", purple: "#7048e8", brown: "#8d5a3b", sky: "#4dabf7", white: "#ffffff", gray: "#868e96", glow: "#ffe066" };
   const INKC = s.c.ink;
@@ -741,11 +741,11 @@ function locate(time) {
 function draw() {
   $("seek").value = T; $("time").textContent = T.toFixed(2) + " / " + total.toFixed(2);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
-  if (!scenes.length) { ctx.clearRect(0, 0, 720, 1280); return; }
+  if (!scenes.length) { ctx.clearRect(0, 0, VW, VH); return; }
   const [i, lt] = locate(T), sc = scenes[i];
   const bg = S.meta?.background?.[sc.theme] || styleBg(sc.theme);
-  if (bg?.top && bg?.bottom) { const g = ctx.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, bg.top); g.addColorStop(1, bg.bottom); ctx.fillStyle = g; } else ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7";
-  ctx.fillRect(0, 0, 720, 1280); drawPattern(ctx, bg?.pattern, sc.dark || curStyle().p?.dark);
+  if (bg?.top && bg?.bottom) { const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, bg.top); g.addColorStop(1, bg.bottom); ctx.fillStyle = g; } else ctx.fillStyle = sc.dark ? "#0b1020" : "#eef2f7";
+  ctx.fillRect(0, 0, VW, VH); drawPattern(ctx, bg?.pattern, sc.dark || curStyle().p?.dark, VW, VH);
   let msg = "";
   if (sc.fn instanceof Error) msg = "Scene " + (i + 1) + ": " + sc.fn.message;
   else {
@@ -829,7 +829,7 @@ $("file").onchange = async () => {
 }
 
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
-const S = { tempo: "energik", gaya: "Cara Kerja", jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
+const S = { ratio: "9:16", tempo: "energik", gaya: "Cara Kerja", jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function readJson(txt) {
   const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
@@ -872,7 +872,7 @@ function p1Html() {
 <div class="set"><button type="button" class="srow rowbtn" id="gayaBtn" aria-haspopup="dialog"><span class="ico"></span><b>Gaya video</b><span class="v" id="gayaV">Cara Kerja ›</span></button>${row("Karakter", "Tanpa karakter")}${row("Warna brand", "Ikut gaya")}
 <div class="srow"><span class="ico"></span><b>Tempo</b><span class="v"><span class="chips" style="justify-content:flex-end"><button type="button" class="chip on" id="tmpE" data-t="energik" aria-pressed="true">Energik</button><button type="button" class="chip" id="tmpS" data-t="santai" aria-pressed="false">Santai</button></span></span></div>
 ${row("Transisi", "Otomatis")}
-<div class="srow col"><span class="ico"></span><b>Ukuran video</b><span class="chips"><button class="chip on" disabled>9:16</button><button class="chip" disabled>16:9</button><button class="chip" disabled>1:1</button><button class="chip" disabled>3:4</button></span></div></div>
+<div class="srow col"><span class="ico"></span><b>Ukuran video</b><span class="chips">${["9:16", "16:9", "1:1", "3:4"].map((r) => `<button type="button" class="chip ${r === "9:16" ? "on" : ""}" data-r="${r}" aria-pressed="${r === "9:16"}">${r}</button>`).join("")}</span><span class="mini" id="sizeNote" style="width:100%" hidden>Animasi yang sudah dibuat ditulis untuk ukuran lain. Buat ulang animasi (langkah 4) agar tata letaknya pas.</span></div></div>
 <div class="stepl"><span class="num">1</span>Kirim perintah ke AI</div>
 <div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="send1">Kirim ke AI</button><button id="copy1">Salin prompt</button></div>
 <p class="warnt">Perintah sudah terisi di Claude. Setelah jawabannya selesai, salin lalu tempel di kotak bawah.</p>
@@ -978,13 +978,13 @@ function styleBgOf(st, theme) {
   return { top: f(t), bottom: f(b), pattern: pat };
 }
 const styleBg = (theme) => (curStyle().b ? styleBgOf(curStyle(), theme) : null);
-function drawPattern(c, pat, dark) {
+function drawPattern(c, pat, dark, W = 720, H = 1280) {
   if (!pat || pat === "none") return;
   c.save(); c.strokeStyle = c.fillStyle = dark ? "rgba(255,255,255,0.08)" : "rgba(28,36,51,0.07)"; c.lineWidth = 2;
-  if (/grid|plate|hud/i.test(pat)) { const g = /deep|big|hud/i.test(pat) ? 90 : 60; for (let x = 0; x <= 720; x += g) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, 1280); c.stroke(); } for (let y = 0; y <= 1280; y += g) { c.beginPath(); c.moveTo(0, y); c.lineTo(720, y); c.stroke(); } }
-  else if (/dots|halftone|dither|grain|film|chalk/.test(pat)) for (let i = 0; i < 260; i++) { c.beginPath(); c.arc((i * 137.5) % 720, (i * 91.7) % 1280, pat === "dots" ? 3 : 1.6, 0, 7); c.fill(); }
-  else if (/stars/.test(pat)) for (let i = 0; i < 70; i++) { c.beginPath(); c.arc((i * 211.3) % 720, (i * 173.9) % 1280, (i % 3) + 1, 0, 7); c.fill(); }
-  else if (/stripes|lines|slash/.test(pat)) for (let y = 0; y < 1280; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(720, y); c.stroke(); }
+  if (/grid|plate|hud/i.test(pat)) { const g = /deep|big|hud/i.test(pat) ? 90 : 60; for (let x = 0; x <= W; x += g) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); } for (let y = 0; y <= H; y += g) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); } }
+  else if (/dots|halftone|dither|grain|film|chalk/.test(pat)) for (let i = 0; i < 260; i++) { c.beginPath(); c.arc((i * 137.5) % W, (i * 91.7) % H, pat === "dots" ? 3 : 1.6, 0, 7); c.fill(); }
+  else if (/stars/.test(pat)) for (let i = 0; i < 70; i++) { c.beginPath(); c.arc((i * 211.3) % W, (i * 173.9) % H, (i % 3) + 1, 0, 7); c.fill(); }
+  else if (/stripes|lines|slash/.test(pat)) for (let y = 0; y < H; y += 40) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
   c.restore();
 }
 function paintBg(c, st, theme) { const b = styleBgOf(st, theme), g = c.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, b.top); g.addColorStop(1, b.bottom); c.fillStyle = g; c.fillRect(0, 0, 720, 1280); drawPattern(c, b.pattern, st.p.dark || theme === "night"); }
@@ -997,7 +997,7 @@ const TEMPO_SWAPS = [
   ['preset utama: "snappy" dan "bouncy"', 'preset utama: "smooth" dan "heavy"']
 ];
 function tempoTpl(t) { return S.tempo === "santai" ? TEMPO_SWAPS.reduce((a, [x, y]) => a.split(x).join(y), t) : t; }
-function tplFor(id) { return tempoTpl(styleTpl(id)); }
+function tplFor(id) { return ratioTpl(tempoTpl(styleTpl(id))); }
 function styleTpl(id) {
   let t = $(id).textContent.trim(); const st = curStyle(); if (!st.b) return t;
   const n = st.n, a = id === "tpl-anim" ? st.aa || st.a : st.a;
@@ -1078,7 +1078,36 @@ function setTempo(t) {
   S.tempo = t; document.querySelectorAll("[data-t]").forEach((b) => { const on = b.dataset.t === t; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
   if ($("sfxVol")) $("sfxVol").value = t === "santai" ? 0.4 : 0.6;
 }
+let VW = 720, VH = 1280;
+const RATIOS = {
+  "9:16": { w: 720, h: 1280, n: "vertikal", ay: 800, c: [360, 420], g: 760, s: [810, 900] },
+  "16:9": { w: 1280, h: 720, n: "horizontal", ay: 560, c: [640, 300], g: 520, s: [590, 680] },
+  "1:1": { w: 960, h: 960, n: "persegi", ay: 650, c: [480, 340], g: 610, s: [670, 760] },
+  "3:4": { w: 720, h: 960, n: "vertikal 3:4", ay: 600, c: [360, 320], g: 560, s: [640, 720] }
+};
+function ratioTpl(t) {
+  if (S.ratio === "9:16") return t;
+  const r = RATIOS[S.ratio], [cx, cy] = r.c, note = `CATATAN UKURAN: kanvas video ini ${r.w} x ${r.h} (${S.ratio}), BUKAN 720 x 1280. Semua koordinat dan ukuran tetap pada arahan gaya di bawah (posisi judul, meteran, zona fokus, y subtitle) ditulis untuk kanvas 720 x 1280: sesuaikan secara proporsional ke ukuran kanvas ini dan jaga titik fokus di tengah.\n`;
+  return t.replace(/## Kanvas\n[\s\S]*?\n\n## Waktu/, () => `## Kanvas
+- Ukuran ${r.w} x ${r.h} (${r.n}). Origin kiri atas.
+- Area ilustrasi: y 0 - ${r.ay}, x 0 - ${r.w}. Pusat ilustrasi kira-kira (${cx}, ${cy}). Engine memperbesar area ini sampai memenuhi layar.
+- Garis tanah standar di y = ${r.g}.
+- Teks narasi (subtitle) tampil DI ATAS gambar, sekitar y ${r.s[0]} - ${r.s[1]}. Objek, lantai, dan badan benda BOLEH lewat di belakangnya sampai bawah layar; jangan menyisakan pita kosong untuk subtitle. Yang tidak boleh ada di situ hanya tulisan lain dan titik fokus.
+
+## Waktu`)
+    .replace("x 168-552, y 240-560", () => `x ${Math.round(r.w * 0.23)}-${Math.round(r.w * 0.77)}, y ${cy - 180}-${cy + 140}`)
+    .replace(/x 60-660/g, () => `x 60-${r.w - 60}`).replace(/y 880-1130/g, () => `y ${r.s[0] - 20}-${r.s[1] + 40}`)
+    .replace("untuk kanvas vertikal 9:16", () => `untuk kanvas ${S.ratio} (${r.n})`)
+    .replace(/^Gaya animasi "/gm, (m) => note + m);
+}
+function setRatio(r) {
+  const o = RATIOS[r]; S.ratio = r; VW = o.w; VH = o.h; cv.width = VW; cv.height = VH; cv.parentElement.style.aspectRatio = VW + " / " + VH;
+  $("cMain").style.gridTemplateColumns = VW > VH ? "minmax(0,640px) minmax(0,1fr)" : "";
+  document.querySelectorAll("[data-r]").forEach((b) => { const on = b.dataset.r === r; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+  $("vsize").textContent = VW + "x" + VH; $("sizeNote").hidden = !Object.keys(S.codes).length; draw();
+}
 function wireIde() {
+  document.querySelectorAll("[data-r]").forEach((b) => (b.onclick = () => setRatio(b.dataset.r)));
   document.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => setTempo(b.dataset.t)));
   wireGaya();
   renderJenis(); $("jbtn").onclick = () => toggleJenis($("jlist").hidden);
@@ -1223,11 +1252,11 @@ function drawSub(sc, lt) {
   const words = sc.nar.trim().split(/\s+/), tm = wordSched(sc.nar, sc.dur); let cur = 0;
   tm.forEach((t, i) => { if (lt >= t) cur = i; });
   const a = Math.floor(cur / 4) * 4, chunk = words.slice(a, a + 4);
-  ctx.save(); ctx.font = `800 44px ${FONT}`; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.lineJoin = "round";
-  const sp = ctx.measureText(" ").width, ws = chunk.map((w) => ctx.measureText(w).width); let x = 360 - (ws.reduce((p, q) => p + q, 0) + sp * (chunk.length - 1)) / 2;
+  ctx.save(); const fz = Math.round(44 * Math.min(VW, VH) / 720), by = Math.round(VH * 0.672); ctx.font = `800 ${fz}px ${FONT}`; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.lineJoin = "round";
+  const sp = ctx.measureText(" ").width, ws = chunk.map((w) => ctx.measureText(w).width); let x = VW / 2 - (ws.reduce((p, q) => p + q, 0) + sp * (chunk.length - 1)) / 2;
   chunk.forEach((w, i) => {
     const hi = sc.emph && w.replace(/[.,!?]/g, "").toLowerCase() === String(sc.emph).toLowerCase();
-    ctx.lineWidth = 9; ctx.strokeStyle = "#0b1020"; ctx.strokeText(w, x, 860); ctx.fillStyle = hi ? "#ffd43b" : "#ffffff"; ctx.fillText(w, x, 860); x += ws[i] + sp;
+    ctx.lineWidth = 9; ctx.strokeStyle = "#0b1020"; ctx.strokeText(w, x, by); ctx.fillStyle = hi ? "#ffd43b" : "#ffffff"; ctx.fillText(w, x, by); x += ws[i] + sp;
   });
   ctx.restore();
 }
@@ -1262,7 +1291,7 @@ async function exportMp4() {
   if (bad >= 0) { $("err").textContent = "Perbaiki dulu error sintaks di scene " + (bad + 1); return; }
   if (!window.VideoEncoder || !window.Mp4Muxer) { $("err").textContent = "Browser belum mendukung WebCodecs atau muxer gagal dimuat. Pakai Chrome atau Edge terbaru."; return; }
   exporting = true; playing = false; $("play").textContent = "Putar"; $("exp").disabled = true; $("err").textContent = "";
-  const fps = 30, W = 720, H = 1280, frames = Math.round(total * fps), HAS = !!(AUD.buf || MUS.buf || ($("sfxOn").checked && sfxEvents().length));
+  const fps = 30, W = VW, H = VH, frames = Math.round(total * fps), HAS = !!(AUD.buf || MUS.buf || ($("sfxOn").checked && sfxEvents().length));
   if (HAS && !window.AudioEncoder) { $("err").textContent = "Browser belum mendukung AudioEncoder. Pakai Chrome atau Edge terbaru."; exporting = false; $("exp").disabled = false; return; }
   try {
     const cfg = { codec: "avc1.640029", width: W, height: H, bitrate: 4e6, framerate: fps };

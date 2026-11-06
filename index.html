@@ -829,7 +829,7 @@ $("file").onchange = async () => {
 }
 
 /* ===== PIPELINE: ide -> narasi -> animasi ===== */
-const S = { gaya: "Cara Kerja", jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
+const S = { tempo: "energik", gaya: "Cara Kerja", jenis: "motivasi", ideas: [], idea: null, scenes: [], codes: {}, meta: null };
 const esc = (x) => String(x ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function readJson(txt) {
   const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
@@ -847,7 +847,7 @@ const P = {
     const dur = +$("vdur").value, v = { TOPIC: t, JENIS: JENIS[S.jenis].p, DURLABEL: fmtDur(dur) };
     return tplFor("tpl-ide").replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   2: () => { if (!S.idea) throw new Error("Pilih ide di langkah 1 dulu");
-    const dur = +$("vdur").value, n = Math.max(2, Math.round(dur / 7.5)), words = Math.round(dur * 2.35);
+    const dur = +$("vdur").value, sp = S.tempo === "santai" ? 10 : 7.5, n = Math.max(2, Math.round(dur / sp)), words = Math.round(dur * (S.tempo === "santai" ? 1.9 : 2.35));
     const v = { JENIS: JENIS[S.jenis].p, TITLE: S.idea.title, HOOK: S.idea.hook, PESAN: S.idea.message ?? S.idea.summary ?? "", VISUAL: S.idea.visual ?? "", N: n, DURLABEL: fmtDur(dur), WORDS: words, PERSCENE: Math.round(words / n), AVG: +(dur / n).toFixed(1) };
     return tplFor("tpl-narasi").replace(/\{\{(\w+)\}\}/g, (_, k) => v[k]); },
   3: () => { if (!S.scenes.length) throw new Error("Proses narasi di langkah 2 dulu");
@@ -870,7 +870,7 @@ function p1Html() {
 <div class="f"><label class="fl" for="topic">Topik video</label><input id="topic" class="inp" placeholder="contoh: disiplin pagi"><p class="mini">Satu-dua kata cukup.</p></div>
 <div class="f"><span class="fl">Durasi video</span><div class="chips" id="durs"><button class="chip" data-v="30">30 dtk</button><button class="chip" data-v="50">50 dtk</button><button class="chip on" data-v="60">1 mnt</button><button class="chip" data-v="0">Custom</button></div><input id="vcus" class="inp" type="number" min="15" max="180" placeholder="durasi dalam detik (15-180)" aria-label="Durasi custom" style="margin-top:8px" hidden><input id="vdur" type="hidden" value="60"></div>
 <div class="set"><button type="button" class="srow rowbtn" id="gayaBtn" aria-haspopup="dialog"><span class="ico"></span><b>Gaya video</b><span class="v" id="gayaV">Cara Kerja ›</span></button>${row("Karakter", "Tanpa karakter")}${row("Warna brand", "Ikut gaya")}
-<div class="srow"><span class="ico"></span><b>Tempo</b><span class="v"><span class="chips" style="justify-content:flex-end"><button class="chip on" disabled>Energik</button><button class="chip" disabled>Santai</button></span></span></div>
+<div class="srow"><span class="ico"></span><b>Tempo</b><span class="v"><span class="chips" style="justify-content:flex-end"><button type="button" class="chip on" id="tmpE" data-t="energik" aria-pressed="true">Energik</button><button type="button" class="chip" id="tmpS" data-t="santai" aria-pressed="false">Santai</button></span></span></div>
 ${row("Transisi", "Otomatis")}
 <div class="srow col"><span class="ico"></span><b>Ukuran video</b><span class="chips"><button class="chip on" disabled>9:16</button><button class="chip" disabled>16:9</button><button class="chip" disabled>1:1</button><button class="chip" disabled>3:4</button></span></div></div>
 <div class="stepl"><span class="num">1</span>Kirim perintah ke AI</div>
@@ -988,7 +988,17 @@ function drawPattern(c, pat, dark) {
   c.restore();
 }
 function paintBg(c, st, theme) { const b = styleBgOf(st, theme), g = c.createLinearGradient(0, 0, 0, 1280); g.addColorStop(0, b.top); g.addColorStop(1, b.bottom); c.fillStyle = g; c.fillRect(0, 0, 720, 1280); drawPattern(c, b.pattern, st.p.dark || theme === "night"); }
-function tplFor(id) {
+const TEMPO_SWAPS = [
+  ["Nuansa: energik dan membakar semangat, ritme cepat, potongan scene pendek, banyak gerakan.", "Nuansa: santai dan menenangkan, ritme pelan, scene lebih panjang, gerakan lembut."],
+  ["Ritmenya cepat, tapi tetap kalimat yang lengkap dan jelas.", "Ritmenya pelan dan lega, tapi tetap kalimat yang lengkap dan jelas."],
+  ['Pakai "shake" atau "crash" untuk momen benturan/kaget/gagal/ledakan, tapi jangan lebih dari sekitar 1 dari 4 scene supaya tetap terasa menghentak.', 'Tempo santai: JANGAN pakai "shake" dan "crash"; pilih gerakan lembut ("push", "pull", "orbit", "handheld", "tilt-up").'],
+  ['- RITME ENERGIK: objek utama sudah MASUK dalam 0.0-0.35 dtk (`s.spring` "snappy"/"bouncy": jatuh dari atas, terbang dari samping, atau membesar).', '- RITME SANTAI: objek utama masuk perlahan dalam 0.4-0.9 dtk (`s.spring` preset "smooth" atau "heavy"), gerak lembut tanpa hentakan, tanpa getar.'],
+  ["- Tidak boleh ada momen diam: selalu ada rotasi, bounce, pulsa, atau getar. Klimaks/aksen di sekitar 55-80% durasi.", "- Boleh ada jeda tenang, tapi selalu ada gerak halus (napas kecil lewat s.wave). Klimaks/aksen di sekitar 55-80% durasi, tanpa getar."],
+  ['preset utama: "snappy" dan "bouncy"', 'preset utama: "smooth" dan "heavy"']
+];
+function tempoTpl(t) { return S.tempo === "santai" ? TEMPO_SWAPS.reduce((a, [x, y]) => a.split(x).join(y), t) : t; }
+function tplFor(id) { return tempoTpl(styleTpl(id)); }
+function styleTpl(id) {
   let t = $(id).textContent.trim(); const st = curStyle(); if (!st.b) return t;
   const n = st.n, a = id === "tpl-anim" ? st.aa || st.a : st.a;
   return t.replace(/(Gaya (?:video|visual)): Cara Kerja \([^)]*\)\./g, (_, k) => `${k}: ${n} (${st.d}).`)
@@ -1064,7 +1074,12 @@ function wireGaya() {
   $("pvp").onclick = () => { gPause = !gPause; $("pvp").textContent = gPause ? "▶" : "❚❚"; };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("gmo").hidden) gOpen(false); });
 }
+function setTempo(t) {
+  S.tempo = t; document.querySelectorAll("[data-t]").forEach((b) => { const on = b.dataset.t === t; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+  if ($("sfxVol")) $("sfxVol").value = t === "santai" ? 0.4 : 0.6;
+}
 function wireIde() {
+  document.querySelectorAll("[data-t]").forEach((b) => (b.onclick = () => setTempo(b.dataset.t)));
   wireGaya();
   renderJenis(); $("jbtn").onclick = () => toggleJenis($("jlist").hidden);
   document.addEventListener("click", (e) => { if (!e.target.closest(".dd")) toggleJenis(false); });

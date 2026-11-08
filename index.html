@@ -816,7 +816,7 @@ $("gen").onclick = async () => {
     let pos = 0; parts.forEach((x) => { all.set(x, pos + lead); pos += x.length + lead + tail; bounds.push(pos / sr); });
     const buf = getAC().createBuffer(1, total, sr); buf.copyToChannel(all, 0);
     setAudio(buf, bounds, false);
-  } catch (e) { say(4, e.message + (/Failed to fetch|NetworkError/.test(e.message) ? " (jaringan diblokir: pakai Upload audio atau buka dari GitHub Pages)" : ""), true); }
+  } catch (e) { say(4, e.message + (/Failed to fetch|NetworkError/.test(e.message) ? " (jaringan diblokir di halaman ini. Buka https://iwanikn.github.io/motiongraphics/ atau pakai Upload audio)" : ""), true); }
   $("gen").disabled = false;
 };
 $("upl").onclick = () => $("file").click();

@@ -776,13 +776,27 @@ let sceneIds = [], AC = null;
 const getAC = () => (AC ||= new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 }));
 const b64f32 = (b64) => { const bin = atob(b64), n = bin.length >> 1, o = new Float32Array(n); for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; o[i] = v / 32768; } return o; };
 const up2 = (a) => { const o = new Float32Array(a.length * 2); for (let i = 0; i < a.length; i++) { o[2 * i] = a[i]; o[2 * i + 1] = (a[i] + (a[i + 1] ?? a[i])) / 2; } return o; };
-async function ttsScene(text) {
+const ttsCache = new Map(), sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function ttsScene(text, onWait) {
   const key = $("gkey").value.trim(); if (!key) throw new Error("Isi API key Gemini dulu");
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${$("gmodel").value}:generateContent?key=${encodeURIComponent(key)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: $("gstyle").value.trim() + ":\n" + text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: $("gvoice").value } } } } }) });
-  if (!r.ok) throw new Error("Gemini " + r.status + ": " + (await r.text()).slice(0, 160));
-  const part = (await r.json()).candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
-  if (!part) throw new Error("Respons suara kosong");
-  return up2(b64f32(part.inlineData.data));
+  const ck = [$("gmodel").value, $("gvoice").value, $("gstyle").value, text].join("|"); if (ttsCache.has(ck)) return ttsCache.get(ck);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${$("gmodel").value}:generateContent?key=${encodeURIComponent(key)}`;
+  const body = JSON.stringify({ contents: [{ parts: [{ text: $("gstyle").value.trim() + ":\n" + text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: $("gvoice").value } } } } });
+  for (let a = 0; ; a++) {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
+    if (r.ok) {
+      const part = (await r.json()).candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
+      if (!part) throw new Error("Respons suara kosong");
+      const pcm = up2(b64f32(part.inlineData.data)); ttsCache.set(ck, pcm); return pcm;
+    }
+    const tx = await r.text();
+    if (r.status === 429 && a < 4 && !/PerDay|limit: 0/i.test(tx)) {
+      const m = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(tx), wait = Math.min(90, Math.ceil(m ? +m[1] : 30) + 2);
+      for (let s = wait; s > 0; s--) { onWait?.(s); await sleep(1000); }
+      continue;
+    }
+    throw new Error(r.status === 429 ? "Kuota Gemini habis (429). Jika ini kuota harian atau model belum tersedia di paket gratis: ganti model ke Flash TTS, tunggu reset kuota (tengah malam waktu Pasifik), aktifkan billing di AI Studio, atau pakai Upload audio." : "Gemini " + r.status + ": " + tx.slice(0, 160));
+  }
 }
 function detectBounds(buf, n) {
   const d = buf.getChannelData(0), sr = buf.sampleRate, win = Math.floor(sr * 0.02), rms = [];
@@ -809,13 +823,21 @@ function wireVoice() {
 $("gen").onclick = async () => {
   if (!S.scenes.length) return say(4, "Proses narasi di langkah 2 dulu", true);
   $("gen").disabled = true;
+  const wait = (i) => (s) => say(4, "Batas kuota per menit tercapai" + (i ? " (scene " + i + ")" : "") + ". Menunggu " + s + " dtk lalu mencoba lagi...");
   try {
-    const parts = []; 
-    for (let i = 0; i < S.scenes.length; i++) { say(4, "Membuat suara scene " + (i + 1) + " dari " + S.scenes.length + "..."); parts.push(await ttsScene(S.scenes[i].narration)); }
-    const sr = 48000, lead = Math.round(sr * 0.15), tail = Math.round(sr * 0.35), total = parts.reduce((a, x) => a + x.length + lead + tail, 0), all = new Float32Array(total), bounds = [0];
-    let pos = 0; parts.forEach((x) => { all.set(x, pos + lead); pos += x.length + lead + tail; bounds.push(pos / sr); });
-    const buf = getAC().createBuffer(1, total, sr); buf.copyToChannel(all, 0);
-    setAudio(buf, bounds, false);
+    if ($("gmode").value === "satu") {
+      say(4, "Membuat suara (1 permintaan untuk seluruh narasi)...");
+      const pcm = await ttsScene(S.scenes.map((x) => x.narration).join("\n\n"), wait(0)), buf = getAC().createBuffer(1, pcm.length, 48000); buf.copyToChannel(pcm, 0);
+      const b = detectBounds(buf, S.scenes.length); setAudio(buf, b, true);
+      if (b.length < S.scenes.length + 1) say(4, "Audio siap, tapi hanya " + (b.length - 1) + " dari " + S.scenes.length + " scene terdeteksi. Geser batas manual di bawah, atau pakai mode per scene.", true);
+    } else {
+      const parts = [];
+      for (let i = 0; i < S.scenes.length; i++) { say(4, "Membuat suara scene " + (i + 1) + " dari " + S.scenes.length + "..."); parts.push(await ttsScene(S.scenes[i].narration, wait(i + 1))); }
+      const sr = 48000, lead = Math.round(sr * 0.15), tail = Math.round(sr * 0.35), total = parts.reduce((a, x) => a + x.length + lead + tail, 0), all = new Float32Array(total), bounds = [0];
+      let pos = 0; parts.forEach((x) => { all.set(x, pos + lead); pos += x.length + lead + tail; bounds.push(pos / sr); });
+      const buf = getAC().createBuffer(1, total, sr); buf.copyToChannel(all, 0);
+      setAudio(buf, bounds, false);
+    }
   } catch (e) { say(4, e.message + (/Failed to fetch|NetworkError/.test(e.message) ? " (jaringan diblokir di halaman ini. Buka https://iwanikn.github.io/motiongraphics/ atau pakai Upload audio)" : ""), true); }
   $("gen").disabled = false;
 };
@@ -1131,6 +1153,7 @@ $("panels").insertAdjacentHTML("beforeend", `<div id="p4" hidden>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div><label for="gvoice">Suara</label><select id="gvoice" class="fld"><option>Charon</option><option>Kore</option><option>Puck</option><option>Fenrir</option><option>Orus</option><option>Zephyr</option><option>Aoede</option><option>Leda</option></select></div>
 <div><label for="gmodel">Model</label><select id="gmodel" class="fld"><option value="gemini-2.5-flash-preview-tts">Flash TTS</option><option value="gemini-2.5-pro-preview-tts">Pro TTS</option></select></div></div>
 <label for="gstyle">Gaya bicara</label><textarea id="gstyle" class="fld" style="height:70px">Bacakan dalam bahasa Indonesia dengan suara pria yang berat dan dalam, tapi penuh energi seperti coach motivasi yang membakar semangat</textarea>
+<label for="gmode">Cara membuat suara</label><select id="gmode" class="fld"><option value="satu">Satu permintaan (hemat kuota, batas scene dideteksi)</option><option value="scene">Per scene (akurat, butuh banyak permintaan)</option></select>
 <div class="bar" style="flex-wrap:wrap;margin:0"><button class="pri" id="gen">Generate suara</button><button id="upl">Upload audio</button><input id="file" type="file" accept="audio/*" hidden></div>
 <p class="hint">Generate memanggil Gemini langsung dari browser, per scene. Panggilan ke situs lain diblokir saat halaman dibuka dari claude.ai, jadi gunakan versi di GitHub Pages atau upload file audio (WAV/MP3) saja.</p>
 <div id="out4" class="stat" role="status"></div><div id="marks"></div></div>`);

@@ -777,21 +777,28 @@ const getAC = () => (AC ||= new (window.AudioContext || window.webkitAudioContex
 const b64f32 = (b64) => { const bin = atob(b64), n = bin.length >> 1, o = new Float32Array(n); for (let i = 0; i < n; i++) { let v = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8); if (v > 32767) v -= 65536; o[i] = v / 32768; } return o; };
 const up2 = (a) => { const o = new Float32Array(a.length * 2); for (let i = 0; i < a.length; i++) { o[2 * i] = a[i]; o[2 * i + 1] = (a[i] + (a[i + 1] ?? a[i])) / 2; } return o; };
 const ttsCache = new Map(), sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let ttsGapMs = 21000, ttsGap = 0, ttsLast = 0;
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open("tts-cache", 1); r.onupgradeneeded = () => r.result.createObjectStore("k"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function cacheGet(k) { try { const db = await idb(); return await new Promise((res) => { const q = db.transaction("k").objectStore("k").get(k); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }); } catch (e) { return null; } }
+async function cacheSet(k, v) { try { const db = await idb(); db.transaction("k", "readwrite").objectStore("k").put(v, k); } catch (e) {} }
 async function ttsScene(text, onWait) {
   const key = $("gkey").value.trim(); if (!key) throw new Error("Isi API key Gemini dulu");
   const ck = [$("gmodel").value, $("gvoice").value, $("gstyle").value, text].join("|"); if (ttsCache.has(ck)) return ttsCache.get(ck);
+  const saved = await cacheGet(ck); if (saved) { ttsCache.set(ck, saved); return saved; }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${$("gmodel").value}:generateContent?key=${encodeURIComponent(key)}`;
   const body = JSON.stringify({ contents: [{ parts: [{ text: $("gstyle").value.trim() + ":\n" + text }] }], generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: $("gvoice").value } } } } });
   for (let a = 0; ; a++) {
+    if (ttsGap) { const w = ttsLast + ttsGap - Date.now(); for (let s = Math.ceil(Math.max(0, w) / 1000); s > 0; s--) { onWait?.(s); await sleep(1000); } }
+    ttsLast = Date.now();
     const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body });
     if (r.ok) {
       const part = (await r.json()).candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
       if (!part) throw new Error("Respons suara kosong");
-      const pcm = up2(b64f32(part.inlineData.data)); ttsCache.set(ck, pcm); return pcm;
+      const pcm = up2(b64f32(part.inlineData.data)); ttsCache.set(ck, pcm); cacheSet(ck, pcm); return pcm;
     }
     const tx = await r.text();
     if (r.status === 429 && a < 4 && !/PerDay|limit: 0/i.test(tx)) {
-      const m = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(tx), wait = Math.min(90, Math.ceil(m ? +m[1] : 30) + 2);
+      const m = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(tx), wait = Math.min(90, Math.ceil(m ? +m[1] : 30) + 2); ttsGap = ttsGapMs;
       for (let s = wait; s > 0; s--) { onWait?.(s); await sleep(1000); }
       continue;
     }
